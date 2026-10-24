@@ -37,25 +37,25 @@ window.JJAM_DATA = (() => {
 
   // rarity: paperback(초록) hardcover(파랑) limited(보라) art(금색)
   const ROLAND_CARDS = {
-    zelkova: { name: '느티나무 공방', rarity: 'paperback', cost: 0, weapon: 'mace', dice: [d('slash', 3, 6), d('blunt', 3, 7)] },
-    ranga: { name: '랑아 공방', rarity: 'paperback', cost: 0, weapon: 'dagger', dice: [d('pierce', 2, 4), d('pierce', 2, 4), d('slash', 2, 5)] },
+    zelkova: { name: '느티나무 공방', rarity: 'paperback', cost: 0, weapon: 'mace', pose: { slash: 'zelkova_axe', blunt: 'zelkova_crouch' }, dice: [d('slash', 3, 6), d('blunt', 3, 7)] },
+    ranga: { name: '랑아 공방', rarity: 'paperback', cost: 0, weapon: 'dagger', pose: { pierce: 'ranga_claw', slash: 'ranga_claw' }, dice: [d('pierce', 2, 4), d('pierce', 2, 4), d('slash', 2, 5)] },
     oldboys: {
-      name: '늙은소년 공방', rarity: 'paperback', cost: 1, weapon: 'hammer',
+      name: '늙은소년 공방', rarity: 'paperback', cost: 1, weapon: 'hammer', pose: { blunt: 'slash' },
       dice: [d('block', 4, 8, { onWin: 'light' }), d('blunt', 4, 8)],
       text: '방어 주사위가 합에서 이기면 빛 1 회복',
     },
-    allas: { name: '알라스 공방', rarity: 'hardcover', cost: 2, weapon: 'spear', dice: [d('pierce', 4, 8), d('pierce', 5, 9)] },
-    mook: { name: '묵 공방', rarity: 'hardcover', cost: 2, weapon: 'katana', dice: [d('slash', 6, 12)] },
-    logic: { name: '로직 아틀리에', rarity: 'hardcover', cost: 2, weapon: 'gun', dice: [d('pierce', 4, 8), d('pierce', 5, 8), d('blunt', 7, 12)] },
-    durandal: { name: '듀랑달', rarity: 'limited', cost: 2, weapon: 'sword', dice: [d('slash', 5, 9), d('slash', 5, 9)] },
+    allas: { name: '알라스 공방', rarity: 'hardcover', cost: 2, weapon: 'spear', pose: { pierce: 'thrust' }, dice: [d('pierce', 4, 8), d('pierce', 5, 9)] },
+    mook: { name: '묵 공방', rarity: 'hardcover', cost: 2, weapon: 'katana', pose: { slash: 'mook_slash' }, dice: [d('slash', 6, 12)] },
+    logic: { name: '로직 아틀리에', rarity: 'hardcover', cost: 2, weapon: 'gun', pose: { pierce: 'logic_pistols', blunt: 'logic_pistols' }, dice: [d('pierce', 4, 8), d('pierce', 5, 8), d('blunt', 7, 12)] },
+    durandal: { name: '듀랑달', rarity: 'limited', cost: 2, weapon: 'sword', pose: { slash: 'slash', pierce: 'thrust' }, dice: [d('slash', 5, 9), d('slash', 5, 9)] },
     crystal: {
-      name: '크리스탈 아틀리에', rarity: 'hardcover', cost: 3, weapon: 'dual',
+      name: '크리스탈 아틀리에', rarity: 'hardcover', cost: 3, weapon: 'dual', pose: { slash: 'crystal' },
       dice: [d('evade', 4, 8), d('slash', 5, 9), d('slash', 5, 9), d('slash', 4, 8, { counter: true })],
       text: '노란 주사위는 반격. 이번 장면에 일방 공격을 받으면 대신 합을 한다',
     },
-    wheels: { name: '휠즈 인더스트리', rarity: 'limited', cost: 4, weapon: 'greatsword', dice: [d('blunt', 10, 18), d('block', 5, 9)] },
+    wheels: { name: '휠즈 인더스트리', rarity: 'limited', cost: 4, weapon: 'greatsword', pose: { blunt: 'wheels_smash' }, dice: [d('blunt', 10, 18), d('block', 5, 9)] },
     furioso: {
-      name: 'Furioso', rarity: 'art', cost: 0, special: 'furioso', weapon: 'sword',
+      name: 'Furioso', rarity: 'art', cost: 0, special: 'furioso', weapon: 'sword', pose: {},
       dice: [
         d('blunt', 4, 8, { w: 'mace' }), d('pierce', 3, 6, { w: 'dagger' }), d('blunt', 4, 8, { w: 'hammer' }),
         d('pierce', 5, 9, { w: 'spear' }), d('slash', 5, 9, { w: 'katana' }), d('pierce', 4, 8, { w: 'gun' }),
@@ -65,29 +65,36 @@ window.JJAM_DATA = (() => {
     },
   };
 
+  // Furioso 주사위의 무기 -> 롤랑 자세
+  const WEAPON_POSE = {
+    mace: 'zelkova_crouch', dagger: 'ranga_claw', hammer: 'wheels_swing', spear: 'thrust', katana: 'mook_slash',
+    gun: 'logic_pistols', dual: 'crystal', greatsword: 'wheels_smash', sword: 'slash',
+  };
+  for (const [id, def] of Object.entries(ROLAND_CARDS)) def.id = id;
+
   const ROLAND_DECK = ['zelkova', 'ranga', 'oldboys', 'allas', 'mook', 'logic', 'durandal', 'crystal', 'wheels'];
 
   const TIGER_RESIST = { slash: 'normal', pierce: 'weak', blunt: 'endure' };
 
   const TIGER_CARDS = {
-    punch: { name: '냥냥펀치', prop: 'claw', dice: [d('blunt', 4, 7), d('slash', 3, 6)] },
-    scratch: { name: '할퀴기', prop: 'claw', dice: [d('slash', 5, 9)] },
+    punch: { name: '냥냥펀치', prop: 'claw', tpose: 'punch', dice: [d('blunt', 4, 7), d('slash', 3, 6)] },
+    scratch: { name: '할퀴기', prop: 'claw', tpose: 'claw', dice: [d('slash', 5, 9)] },
     eat: {
-      name: '짬밥 섭취', prop: 'tray', gimmick: 'heal', heal: 0.2, dice: [d('block', 5, 9)],
+      name: '짬밥 섭취', prop: 'tray', tpose: 'eat', gimmick: 'heal', heal: 0.2, dice: [d('block', 5, 9)],
       text: '이 책장에 피해를 주지 못하면 장면 끝에 체력 20% 회복',
     },
     k2: {
-      name: 'K2 점사', prop: 'rifle', ammo: 3, weight: 1.5, dice: [d('pierce', 4, 8), d('pierce', 4, 8), d('pierce', 4, 8)],
+      name: 'K2 점사', prop: 'rifle', tpose: 'shoot', ammo: 3, weight: 1.5, dice: [d('pierce', 4, 8), d('pierce', 4, 8), d('pierce', 4, 8)],
       text: '탄약 3 소모',
     },
-    supply: { name: '탄약 보급', prop: 'crate', gimmick: 'supply', dice: [], text: '주사위 없음. 탄약을 채운다. 반격 기회!' },
-    discipline: { name: '군기 잡기', prop: 'baton', dice: [d('blunt', 5, 9), d('slash', 5, 9)] },
+    supply: { name: '탄약 보급', prop: 'crate', tpose: 'supply', gimmick: 'supply', dice: [], text: '주사위 없음. 탄약을 채운다. 반격 기회!' },
+    discipline: { name: '군기 잡기', prop: 'baton', tpose: 'baton', dice: [d('blunt', 5, 9), d('slash', 5, 9)] },
     pushup: {
-      name: '얼차려: 엎드려뻗쳐', prop: 'whistle', onHit: 'pushup', weight: 1.3, dice: [d('blunt', 6, 10)],
+      name: '얼차려: 엎드려뻗쳐', prop: 'whistle', tpose: 'command', onHit: 'pushup', weight: 1.3, dice: [d('blunt', 6, 10)],
       text: '적중 시 다음 장면 롤랑 속도 주사위 -1',
     },
     duckwalk: {
-      name: '얼차려: 오리걸음', prop: 'whistle', onHit: 'duckwalk', weight: 1.3, dice: [d('slash', 4, 7), d('blunt', 4, 7)],
+      name: '얼차려: 오리걸음', prop: 'whistle', tpose: 'command', onHit: 'duckwalk', weight: 1.3, dice: [d('slash', 4, 7), d('blunt', 4, 7)],
       text: '적중 시 다음 장면 롤랑 회피 주사위 사용 불가',
     },
   };
@@ -136,5 +143,7 @@ window.JJAM_DATA = (() => {
     },
   };
 
-  return { DICE, RESIST, ROLAND, ROLAND_CARDS, ROLAND_DECK, TIGER_RESIST, TIGER_CARDS, STATUS, PHASES, LINES };
+  for (const [id, def] of Object.entries(TIGER_CARDS)) def.id = id;
+
+  return { DICE, RESIST, ROLAND, ROLAND_CARDS, WEAPON_POSE, ROLAND_DECK, TIGER_RESIST, TIGER_CARDS, STATUS, PHASES, LINES };
 })();

@@ -37,21 +37,7 @@
   <div class="rExtra" id="rolandExtra"></div>
 
   <section class="stage" id="stage" aria-label="무대">
-    <div class="stageInner" id="stageInner">
-      <div class="bg" aria-hidden="true"><div class="wall"></div><div class="floor"></div></div>
-      <svg class="arrows" id="arrows" aria-hidden="true"></svg>
-      <div class="actor roland" id="actorR">
-        <div class="diceRow" id="rDiceRow"></div>
-        <div class="sprite" id="spriteR"></div>
-        <div class="feet" id="feetR"></div>
-      </div>
-      <div class="actor tiger" id="actorT">
-        <div class="diceRow" id="tDiceRow"></div>
-        <div class="sprite" id="spriteT"></div>
-        <div class="feet" id="feetT"></div>
-      </div>
-      <div class="fx" id="fx" aria-hidden="true"></div>
-    </div>
+    <div class="phaser" id="phaser"></div>
     <div class="cbanner roland" id="bannerR" hidden></div>
     <div class="cbanner tiger" id="bannerT" hidden></div>
     <p class="say r" id="rolandLine"></p>
@@ -110,8 +96,11 @@
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.80.1/phaser.min.js"></script>
 <script src="src/data.js"></script>
 <script src="src/art.js"></script>
+<script src="src/tiger.js"></script>
+<script src="src/stage.js"></script>
 <script src="src/game.js"></script>
 </body>
 </html>

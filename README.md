@@ -4,7 +4,21 @@ Library of Ruina(Project Moon)를 바탕으로 만든 비공식 팬게임입니�
 
 ## 실행
 
-설치할 것 없이 `index.html`을 브라우저로 열면 됩니다.
+무대는 [Phaser](https://phaser.io) 3로 그립니다. 에셋을 불러오기 때문에 로컬 서버로 열어야 합니다.
+
+```
+python3 -m http.server 8000
+# 브라우저에서 http://localhost:8000
+```
+
+## 원작 그림 준비 (개인 테스트용)
+
+롤랑 스프라이트, 이펙트, 책장 일러스트는 원작 게임 파일에서 직접 추출해 `assets/ruina/` 아래에 둡니다. 이 폴더는 `.gitignore`에 들어 있어 저장소에 올라가지 않습니다.
+
+1. AssetStudio로 `LibraryOfRuina_Data`에서 롤랑 모션 시트를 PNG로 뽑아 `assets/ruina/roland/`에, 책장 일러스트를 `assets/ruina/cards/<책장 id>.png`로 넣습니다.
+2. `pip install pillow numpy scipy` 후 `python3 tools/compose.py`를 실행하면 부위 조각을 조립한 자세 이미지(`assets/ruina/poses/`)와 이펙트(`assets/ruina/fx/`)가 만들어집니다. 시트별 조각 위치는 `tools/compose.py`의 `POSES`에 있습니다.
+
+그림이 없으면 롤랑은 임시 실루엣으로 나옵니다. 짬타이거는 `src/tiger.js`에서 코드로 그리는 자체 그림이라 따로 준비할 것이 없습니다.
 
 ## 구조
 
@@ -13,8 +27,11 @@ Library of Ruina(Project Moon)를 바탕으로 만든 비공식 팬게임입니�
 | `index.html` | 화면 뼈대 |
 | `style.css` | 스타일 |
 | `src/data.js` | 책장, 주사위, 내성, 계급(페이즈), 대사 데이터. 수치 조정은 여기서 |
-| `src/art.js` | 임시 그래픽(무기 실루엣, 캐릭터, 주사위 아이콘) SVG |
-| `src/game.js` | 속도 주사위, 합 판정, 장면 진행, 연출 |
+| `src/art.js` | 무기 실루엣, 주사위 아이콘 SVG |
+| `src/tiger.js` | 짬타이거 인형(관절 각도로 자세를 만드는 SVG) |
+| `src/stage.js` | Phaser 무대: 배경, 캐릭터, 속도 주사위, 화살표, 합 연출 |
+| `src/game.js` | 속도 주사위 배치, 합 판정, 장면 진행 |
+| `tools/compose.py` | 원작 시트 조각을 자세 이미지로 조립 |
 
 데이터를 로직과 분리해 두었기 때문에, 나중에 라오루 모드(카드 XML)로 옮길 때 `src/data.js`를 기준으로 변환하면 됩니다.
 
@@ -38,4 +55,4 @@ Library of Ruina(Project Moon)를 바탕으로 만든 비공식 팬게임입니�
 
 ## 리소스
 
-현재 그림은 모두 직접 그린 임시 SVG입니다. 원작 게임 파일에서 추출한 일러스트나 음악은 공개 배포본에 넣지 않습니다.
+원작 게임 파일에서 추출한 그림은 개인 테스트용이며 저장소와 공개 배포본에 넣지 않습니다. 공개 배포 전에 롤랑 그림을 직접 그린 것으로 바꿔야 합니다.

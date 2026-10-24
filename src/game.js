@@ -2,6 +2,8 @@
 (() => {
   const D = window.JJAM_DATA;
   const A = window.JJAM_ART;
+  const STG = window.JJAM_STAGE;
+  const TG = window.JJAM_TIGER;
   const $ = (id) => document.getElementById(id);
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const rand = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
@@ -24,14 +26,6 @@
   const nm = (side) => (side.who === 'roland' ? '롤랑' : '짬타이거');
   const WORKSHOPS = D.ROLAND_DECK;
 
-  // 무대 위 캐릭터 위치(%). idle은 계획 단계, 나머지는 합 연출
-  const POS = {
-    idle: { roland: 24, tiger: 76 },
-    clash: { roland: 39, tiger: 61 },
-    rAttack: { roland: 58, tiger: 74 },
-    tAttack: { roland: 26, tiger: 42 },
-  };
-
   let S;
 
   // ---------- 게임 진행 ----------
@@ -52,9 +46,7 @@
     draw(r.startHand + r.blackSilenceDraw);
     $('log').innerHTML = '';
     $('overlay').hidden = true;
-    setPose('idle');
-    setWeapon(null);
-    setProp(null);
+    STG.setRank('이병');
     say('roland', pick(D.LINES.roland.start));
     say('tiger', D.PHASES[0].intro);
     addLog(`${D.PHASES[0].rank} 짬타이거가 나타났다.`);
@@ -241,7 +233,6 @@
     R.light -= reservedLight();
     S.busy = true;
     S.sel = -1;
-    $('stage').classList.add('combat');
     render();
     await sleep(250);
     for (const act of acts) {
@@ -255,10 +246,8 @@
     }
     S.acting = null;
     hideBanners();
-    setPose('idle');
-    setWeapon(null);
-    setProp(null);
-    $('stage').classList.remove('combat', 'furioso');
+    STG.furioso(false);
+    STG.place('idle');
     await sleep(350);
     endScene();
   }
@@ -284,7 +273,7 @@
     } else if (R.counters.length && !R.broken) {
       // 반격 주사위가 남아 있으면 일방 공격 대신 합을 한다
       const c = R.counters.shift();
-      Aside = side('roland', { name: `반격 · ${c.from}`, weapon: c.weapon, rarity: 'hardcover', dice: [c.die] }, null, [c.die]);
+      Aside = side('roland', { id: c.id, name: `반격 · ${c.from}`, weapon: c.weapon, pose: c.pose, rarity: 'hardcover', dice: [c.die] }, null, [c.die]);
       addLog(`반격 주사위로 받아친다 (${c.from}).`);
     } else {
       Aside = side('roland', null, null);
@@ -299,12 +288,10 @@
     else if (hasA) addLog(`일방 공격: ${Aside.def.name}`);
     else addLog(`일방 공격: 짬타이거의 ${Bside.def.name}`);
 
-    setPose(hasA && tc ? 'clash' : hasA ? 'rAttack' : 'tAttack');
-    setWeapon(Aside.def ? Aside.def.weapon : null);
-    setProp(Bside.def ? Bside.def.prop : null);
+    STG.place(hasA && tc ? 'clash' : hasA ? 'rAttack' : 'tAttack');
     showBanners(Aside, Bside);
     if (furioso) await furiosoIntro();
-    await sleep(420);
+    await sleep(480);
 
     while (!S.over && !S.phaseEnded) {
       const aHas = Aside.i < Aside.q.length && !R.broken;
@@ -322,7 +309,7 @@
     rc.resolved = true;
     const def = rCard(rc);
     for (const die of def.dice) {
-      if (die.counter) S.roland.counters.push({ die, from: def.name, weapon: def.weapon });
+      if (die.counter) S.roland.counters.push({ die, from: def.name, weapon: def.weapon, id: def.id, pose: def.pose });
     }
     if (def.special === 'furioso') say('roland', pick(D.LINES.roland.furioso));
     else if (Math.random() < 0.2) say('roland', pick(D.LINES.roland.attack));
@@ -349,43 +336,72 @@
   async function dicePair(Aside, Bside) {
     const da = Aside.q[Aside.i], db = Bside.q[Bside.i];
     const va = rand(da.min, da.max), vb = rand(db.min, db.max);
-    if (da.w) setWeapon(da.w);
     setEmblem('roland', da, va);
     setEmblem('tiger', db, vb);
     markQueue(Aside, Bside);
-    lunge();
-    await sleep(230);
+    await sleep(260);
     const ka = kindOf(da), kb = kindOf(db);
     let useA = true, useB = true, result;
     if (ka === 'atk' && kb === 'atk') {
       if (va > vb) result = hit(Aside, Bside, va, da);
       else if (vb > va) result = hit(Bside, Aside, vb, db);
-      else { result = '동점, 서로 상쇄'; fxSpark(); }
+      else { result = '동점, 서로 상쇄'; tie(Aside, Bside, da, db); }
     } else if (ka === 'atk') {
       [useA, useB, result] = atkVsDef(Aside, Bside, va, vb, da, db);
     } else if (kb === 'atk') {
       [useB, useA, result] = atkVsDef(Bside, Aside, vb, va, db, da);
     } else if (da.t === 'block' && db.t === 'block' && va !== vb) {
       const [w, l] = va > vb ? [Aside, Bside] : [Bside, Aside];
-      fxShield(w.who);
+      STG.guard(w.who, defPose(w, w === Aside ? da : db));
+      STG.guard(l.who, defPose(l, l === Aside ? da : db));
       result = staggerHit(l, Math.abs(va - vb), w);
     } else {
       result = '서로 수비, 효과 없음';
-      fxSpark();
+      tie(Aside, Bside, da, db);
     }
     showReadout(da, va, db, vb, result);
     addLog(`${D.DICE[da.t].label} ${va} 대 ${D.DICE[db.t].label} ${vb}: ${result}`);
     if (useA) Aside.i++;
     if (useB) Bside.i++;
     markQueue(Aside, Bside);
-    await sleep(Aside.def && Aside.def.special === 'furioso' ? 420 : 720);
+    await sleep(Aside.def && Aside.def.special === 'furioso' ? 420 : 760);
+    restPoses();
+  }
+
+  // ---------- 자세 고르기 ----------
+
+  function atkPose(sd, die) {
+    if (sd.who === 'tiger') return (sd.def && sd.def.tpose) || 'claw';
+    if (die.w) return D.WEAPON_POSE[die.w] || 'slash';
+    const map = (sd.def && sd.def.pose) || {};
+    return map[die.t] || (die.t === 'pierce' ? 'thrust' : 'slash');
+  }
+
+  function defPose(sd, die) {
+    if (sd.who === 'tiger') return sd.def && sd.def.tpose === 'eat' ? 'eat' : 'guard';
+    return die.t === 'evade' ? 'evade' : 'guard';
+  }
+
+  function tie(Aside, Bside, da, db) {
+    for (const [sd, die] of [[Aside, da], [Bside, db]]) {
+      if (kindOf(die) === 'atk') STG.strike(sd.who, atkPose(sd, die));
+      else STG.guard(sd.who, defPose(sd, die));
+    }
+    STG.spark();
+  }
+
+  function restPoses() {
+    if (S.over || S.phaseEnded) return;
+    if (!S.roland.broken) STG.pose('roland', 'move');
+    if (!S.tiger.broken) STG.pose('tiger', 'move');
   }
 
   // X가 공격, Y가 수비. [X 주사위 소모, Y 주사위 소모, 결과 문구]
   function atkVsDef(X, Y, vx, vy, dx, dy) {
     if (dy.t === 'block') {
       if (vx > vy) return [true, true, hit(X, Y, vx - vy, dx)];
-      fxShield(Y.who);
+      STG.strike(X.who, atkPose(X, dx));
+      STG.guard(Y.who, defPose(Y, dy));
       if (vy > vx) {
         onWin(Y, dy);
         return [true, true, staggerHit(X, vy - vx, Y)];
@@ -395,12 +411,12 @@
     if (vy > vx) {
       onWin(Y, dy);
       if (!Y.u.broken) Y.u.st = Math.min(Y.u.maxSt, Y.u.st + vy);
-      fxDodge(Y.who);
-      fxFloat(Y.who, '회피', 'evade');
+      STG.strike(X.who, atkPose(X, dx));
+      STG.dodge(Y.who);
       return [true, false, `${nm(Y)} 회피 성공, 흐트러짐 ${vy} 회복 (회피 주사위 재사용)`];
     }
     if (vx > vy) return [true, true, hit(X, Y, vx, dx)];
-    fxSpark();
+    tie(X, Y, dx, dy);
     return [true, true, '동점, 서로 상쇄'];
   }
 
@@ -427,7 +443,9 @@
     const stDmg = Math.max(1, Math.round(value * res.mult));
     u.hp = Math.max(0, u.hp - real);
     const isMax = value >= die.max;
-    fxHit(X, Y, die, real, isMax);
+    const pose = atkPose(X, die);
+    STG.strike(X.who, pose);
+    STG.hit(X.who, Y.who, pose, real, isMax, { furioso: !!(X.def && X.def.special === 'furioso') });
     let txt = `${nm(X)} 승리, ${nm(Y)} 피해 ${real}`;
     if (res.mult !== 1) txt += ` (${res.label})`;
     if (mult > 1) txt += ' (흐트러짐 2배)';
@@ -475,16 +493,15 @@
     markQueue(X.who === 'roland' ? X : Y, X.who === 'roland' ? Y : X);
     if (kindOf(dx) !== 'atk') return; // 남은 수비 주사위는 아무 일도 하지 않는다
     const v = rand(dx.min, dx.max);
-    if (dx.w) setWeapon(dx.w);
     setEmblem(X.who, dx, v);
     setEmblem(Y.who, null, null);
-    lunge(X.who);
-    await sleep(200);
+    await sleep(220);
     const result = hit(X, Y, v, dx);
     if (X.who === 'roland') showReadout(dx, v, null, null, result);
     else showReadout(null, null, dx, v, result);
     addLog(`일방 ${D.DICE[dx.t].label} ${v}: ${result}`);
-    await sleep(X.def && X.def.special === 'furioso' ? 380 : 600);
+    await sleep(X.def && X.def.special === 'furioso' ? 380 : 640);
+    restPoses();
   }
 
   // ---------- 장면 종료 ----------
@@ -566,6 +583,8 @@
     R.pending = {};
     R.maxLight = D.ROLAND.baseLight + S.phase;
     R.light = R.maxLight;
+    await STG.setRank(D.PHASES[S.phase].rank);
+    tigerArtCache.clear();
     actCard(S.phase + 1);
     say('tiger', D.PHASES[S.phase].intro);
     addLog(`짬타이거가 ${D.PHASES[S.phase].rank}으로 진급했다. 롤랑은 체력 ${D.ROLAND.phaseHeal}을 회복하고 빛을 모두 채웠다.`);
@@ -594,33 +613,37 @@
 
   // ---------- 무대 연출 ----------
 
-  let pos = { ...POS.idle };
-  function setPose(name) {
-    pos = { ...POS[name] };
-    $('actorR').style.setProperty('--x', pos.roland + '%');
-    $('actorT').style.setProperty('--x', pos.tiger + '%');
-  }
-  function setWeapon(w) { $('spriteR').innerHTML = A.roland(w); }
-  function setProp(p) { $('spriteT').innerHTML = A.tiger(p); }
-
   function restart(el, cls) {
     el.classList.remove(cls);
     void el.offsetWidth;
     el.classList.add(cls);
   }
 
-  function lunge(who) {
-    if (!who || who === 'roland') restart($('actorR'), 'lunge');
-    if (!who || who === 'tiger') restart($('actorT'), 'lunge');
+  const fxFloat = (who, text, cls) => STG.float(who, text, cls);
+
+  // 책장 그림: 롤랑은 원작 책장 일러스트, 짬타이거는 그 책장 자세의 짬타이거
+  const tigerArtCache = new Map();
+  function tigerArt(def) {
+    const rank = D.PHASES[S.phase].rank;
+    const key = def.tpose + rank;
+    if (!tigerArtCache.has(key)) {
+      const svg = TG.build(def.tpose || 'idle', rank).svg;
+      tigerArtCache.set(key, 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg));
+    }
+    return tigerArtCache.get(key);
+  }
+  function cardArt(def, cls = '') {
+    if (def.tpose) return `<img class="art tiger ${cls}" src="${tigerArt(def)}" alt="">`;
+    if (def.id && STG.hasCardArt(def.id)) return `<img class="art ${cls}" src="assets/ruina/cards/${def.id}.png" alt="">`;
+    return A.glyph(def.weapon || def.prop);
   }
 
   function showBanners(Aside, Bside) {
     const fill = (el, sd) => {
       if (!sd.def || (!sd.q.length && !sd.ref)) { el.hidden = true; return; }
-      const art = sd.def.weapon || sd.def.prop;
       el.className = `cbanner ${sd.who} rar-${sd.def.rarity || 'enemy'}`;
       el.innerHTML =
-        `<div class="cbArt">${A.glyph(art)}</div>` +
+        `<div class="cbArt">${cardArt(sd.def)}</div>` +
         `<div class="cbBody"><b class="cbName">${sd.def.name}</b><span class="cbQueue">${sd.q.map((x) => A.dieIcon(x)).join('')}</span></div>` +
         `<div class="emblem"><span class="emIcon"></span><b class="emVal"></b></div>`;
       el.hidden = false;
@@ -653,62 +676,13 @@
     }
   }
 
-  function fxEl(cls, x, y, html = '') {
-    const el = document.createElement('div');
-    el.className = 'fxItem ' + cls;
-    el.style.left = x + '%';
-    el.style.top = y + '%';
-    el.innerHTML = html;
-    $('fx').appendChild(el);
-    setTimeout(() => el.remove(), 1300);
-    return el;
-  }
-
-  function fxFloat(who, text, cls) {
-    const x = pos[who] + (Math.random() * 6 - 3);
-    fxEl('float ' + cls, x, 30 + Math.random() * 6, text);
-  }
-
-  function fxHit(X, Y, die, real, isMax) {
-    const tx = pos[Y.who];
-    const color = X.who === 'roland' ? 'cyan' : 'pink';
-    const rot = Math.round(Math.random() * 70 - 35) + (X.who === 'roland' ? 0 : 180);
-    if (X.def && X.def.special === 'furioso') {
-      furiosoHit(die, tx);
-    } else {
-      fxEl(`slash ${color} ${die.t}`, tx, 50,
-        `<svg viewBox="0 0 100 100" style="transform:rotate(${rot}deg)"><path d="M8 78 Q42 -6 94 26"/></svg>`);
-    }
-    fxFloat(Y.who, `-${real}`, 'dmg');
-    if (isMax) fxEl('float max', tx, 18, '최대피해!');
-    restart($(Y.who === 'roland' ? 'actorR' : 'actorT'), 'hurt');
-    if (isMax || real >= 12) restart($('stage'), 'shake');
-  }
-
-  function fxShield(who) { fxEl('shield', pos[who], 52); }
-  function fxDodge(who) { restart($(who === 'roland' ? 'actorR' : 'actorT'), 'dodge'); }
-  function fxSpark() { fxEl('spark', (pos.roland + pos.tiger) / 2, 50); }
-
   async function furiosoIntro() {
-    $('stage').classList.add('furioso');
+    STG.furioso(true);
     const t = $('furiosoTitle');
     t.hidden = false;
     restart(t, 'show');
     await sleep(900);
     t.hidden = true;
-  }
-
-  // 원작 Furioso처럼 흑백 화면에 롤랑 잔상이 무기를 바꿔 들며 사방에서 베고 지나간다
-  function furiosoHit(die, tx) {
-    const ghost = fxEl('afterimage', tx + (Math.random() * 30 - 15), 52, A.roland(die.w));
-    ghost.style.setProperty('--r', `${Math.round(Math.random() * 40 - 20)}deg`);
-    ghost.style.setProperty('--s', (0.9 + Math.random() * 0.5).toFixed(2));
-    if (Math.random() < 0.5) ghost.classList.add('flip');
-    for (let k = 0; k < 3; k++) {
-      const s = fxEl('streak', tx + (Math.random() * 20 - 10), 30 + Math.random() * 40);
-      s.style.setProperty('--r', `${Math.round(Math.random() * 180)}deg`);
-    }
-    for (let k = 0; k < 4; k++) fxEl('star', tx + (Math.random() * 40 - 20), 20 + Math.random() * 60);
   }
 
   function actCard(n) {
@@ -783,12 +757,14 @@
     $('rSt').textContent = R.st;
     $('tHp').textContent = T.hp;
     $('tSt').textContent = T.st;
-    $('actorR').classList.toggle('broken', R.broken);
-    $('actorT').classList.toggle('broken', T.broken);
-    for (const [k, u] of [['R', R], ['T', T]]) {
-      $('feet' + k).innerHTML =
-        `<span class="fHp">${u.hp}</span><span class="fSt">${u.st}</span>`;
+    if (S.faceRank !== ph.rank) {
+      S.faceRank = ph.rank;
+      $('tFace').innerHTML = `<span class="faceImg tiger" style="background-image:url('${tigerArt({ tpose: 'idle' })}')"></span>`;
     }
+    STG.setFeet('roland', R.hp, R.st);
+    STG.setFeet('tiger', T.hp, T.st);
+    STG.setBroken('roland', R.broken);
+    STG.setBroken('tiger', T.broken);
 
     const avail = availableLight();
     $('lightPips').innerHTML = Array.from({ length: R.maxLight }, (_, i) =>
@@ -810,52 +786,30 @@
       `<li class="${i < S.phase ? 'done' : i === S.phase ? 'now' : ''}">${p.rank}</li>`).join('');
   }
 
+  const RAR_COLOR = { paperback: 0x5fbf4a, hardcover: 0x4a8fe0, limited: 0x9a5ae0, art: 0xe6bd5c };
+
   function renderDice() {
     const acting = S.acting;
-    $('rDiceRow').innerHTML = S.rDice.map((d, i) => {
-      const plate = d.card
-        ? `<span class="plate rar-${rCard(d.card).rarity}">${A.glyph(rCard(d.card).weapon)}</span>`
-        : '<span class="plate empty"></span>';
-      const cls = ['sdie', 'r', d.card ? 'filled' : '', S.sel === i ? 'sel' : '',
-        acting && acting.r === i && acting.type !== 'oneT' ? 'acting' : ''].join(' ');
-      return `<button type="button" class="${cls}" data-r="${i}" id="rd${i}" aria-label="속도 ${d.speed} 주사위${d.card ? ', ' + rCard(d.card).name : ''}">${plate}<span class="face">${d.speed}</span></button>`;
-    }).join('');
-    $('tDiceRow').innerHTML = S.tDice.map((d, t) => {
-      const cls = ['sdie', 't', S.peek === t ? 'sel' : '',
-        acting && acting.t === t && acting.type !== 'oneR' ? 'acting' : ''].join(' ');
-      return `<button type="button" class="${cls}" data-t="${t}" id="td${t}" aria-label="속도 ${d.speed} 주사위, ${d.card.def.name}"><span class="plate rar-enemy">${A.glyph(d.card.def.prop)}</span><span class="face">${d.speed}</span></button>`;
-    }).join('');
-    requestAnimationFrame(renderArrows);
-  }
-
-  function renderArrows() {
-    const svg = $('arrows');
-    const stage = $('stageInner').getBoundingClientRect();
-    svg.setAttribute('viewBox', `0 0 ${stage.width} ${stage.height}`);
-    if (S.busy || !stage.width) { svg.innerHTML = ''; return; }
-    const pt = (el) => {
-      const r = el.getBoundingClientRect();
-      return { x: r.left + r.width / 2 - stage.left, y: r.top - stage.top + 2 };
-    };
-    const body = (id) => {
-      const r = $(id).getBoundingClientRect();
-      return { x: r.left + r.width / 2 - stage.left, y: r.top + r.height * 0.45 - stage.top };
-    };
-    const arc = (a, b, cls, both) => {
-      const lift = Math.min(90, 26 + Math.abs(b.x - a.x) * 0.28);
-      const mx = (a.x + b.x) / 2, my = Math.min(a.y, b.y) - lift;
-      return `<path class="arw ${cls}" d="M${a.x} ${a.y} Q${mx} ${my} ${b.x} ${b.y}" marker-end="url(#mk-${cls})"${both ? ` marker-start="url(#mk-${cls})"` : ''}/>`;
-    };
-    let out = '';
-    for (const act of computeActions()) {
-      const rEl = act.r != null ? $('rd' + act.r) : null;
-      const tEl = act.t != null ? $('td' + act.t) : null;
-      if (act.type === 'clash') out += arc(pt(rEl), pt(tEl), 'clash', true);
-      else if (act.type === 'oneR') out += arc(pt(rEl), tEl ? pt(tEl) : body('actorT'), 'mine');
-      else out += arc(pt(tEl), rEl ? pt(rEl) : body('actorR'), 'foe');
-    }
-    const mk = (id) => `<marker id="mk-${id}" class="mk ${id}" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z"/></marker>`;
-    svg.innerHTML = `<defs>${mk('clash')}${mk('mine')}${mk('foe')}</defs>${out}`;
+    STG.renderDice({
+      busy: S.busy,
+      rDice: S.rDice.map((d, i) => ({
+        speed: d.speed,
+        cardKey: d.card ? 'card_' + d.card.id : null,
+        rarityColor: d.card ? RAR_COLOR[rCard(d.card).rarity] : 0x555555,
+        sel: S.sel === i,
+        acting: !!(acting && acting.r === i && acting.type !== 'oneT'),
+      })),
+      tDice: S.tDice.map((d, t) => ({
+        speed: d.speed,
+        tigerPose: d.card.def.tpose,
+        rarityColor: 0x8e9b54,
+        sel: S.peek === t,
+        acting: !!(acting && acting.t === t && acting.type !== 'oneR'),
+      })),
+      actions: S.busy ? [] : computeActions(),
+      onR: onRDieTap,
+      onT: onTDieTap,
+    });
   }
 
   function cardFull(def, label) {
@@ -868,7 +822,7 @@
       : '<p class="cfText">주사위 없음</p>';
     return `<div class="cardFull rar-${def.rarity || 'enemy'}">
       <span class="cfLabel">${label}</span>
-      <div class="cfTop"><div class="cfArt">${A.glyph(def.weapon || def.prop)}</div><div class="cfHead">${cost}<b>${def.name}</b></div></div>
+      <div class="cfTop"><div class="cfArt">${cardArt(def)}</div><div class="cfHead">${cost}<b>${def.name}</b></div></div>
       ${dice}${def.text ? `<p class="cfText">${def.text}</p>` : ''}
     </div>`;
   }
@@ -912,7 +866,7 @@
       const ok = canPlace && def.cost <= avail;
       return `<button type="button" class="hcard rar-${def.rarity}" data-uid="${c.uid}" id="hand${c.uid}" ${ok ? '' : 'aria-disabled="true"'}>
         <span class="hcTop"><span class="cost">${def.cost}</span><span class="hcName">${def.name}</span></span>
-        <span class="hcArt">${A.glyph(def.weapon)}</span>
+        <span class="hcArt">${cardArt(def)}</span>
         <span class="hcDice">${def.dice.map((x) => A.dieIcon(x)).join('')}</span>
       </button>`;
     }).join('') || '<p class="emptyHand">손패가 비었습니다.</p>';
@@ -943,11 +897,17 @@
   $('restartBtn').addEventListener('click', newGame);
   $('fastBtn').addEventListener('click', () => {
     fast = !fast;
+    STG.setFast(fast);
     $('fastBtn').setAttribute('aria-pressed', String(fast));
   });
-  window.addEventListener('resize', () => requestAnimationFrame(renderArrows));
-
   $('rFace').innerHTML = A.faceRoland;
   $('tFace').innerHTML = A.faceTiger;
+  STG.init($('phaser'));
+  STG.ready.then(() => {
+    if (STG.hasCardArt('durandal')) {
+      $('rFace').innerHTML = '<span class="faceImg roland"></span>';
+    }
+    render();
+  });
   newGame();
 })();
