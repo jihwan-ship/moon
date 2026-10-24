@@ -26,8 +26,13 @@ NECK_ON_HEAD = (0.55, 0.93)  # 머리에서 목에 닿는 점
 # body/head/hair/face: 시트 안의 대략적인 상자 [x0, y0, x1, y1]
 # neck: 몸통 상자 기준 목 위치, tilt: 머리 기울기(도, 양수 = 시계 방향)
 POSES = {
-    'idle': dict(sheet='durandal_idle_hurt.png', body=[0, 682, 372, 1024], head=[0, 265, 158, 439], hair=[0, 439, 192, 613],
-                 face=('durandal_guard.png', [0, 181, 101, 221]), neck=(270, 14), tilt=0),
+    # 기본 자세: 몸통, 다리, 팔이 따로 나뉜 시트를 조립한다(넥타이를 만지며 칼을 늘어뜨린 자세)
+    'idle': dict(sheet='durandal_parts.png', head=[133, 348, 291, 520], hair=[0, 520, 191, 700],
+                 face=('durandal_parts.png', [193, 642, 293, 680]),
+                 layers=[([0, 701, 311, 1024], (80, 20)), ([0, 309, 133, 520], (-6, 135)),
+                         ([0, 138, 124, 304], (0, 0)), ([0, 26, 106, 138], (-20, 20))],
+                 neck=(62, 10), tilt=0),
+    # 맞았을 때: 가슴을 움켜쥐고 칼을 떨군 몸통에 멍든 표정
     'hurt': dict(sheet='durandal_idle_hurt.png', body=[0, 682, 372, 1024], head=[0, 265, 158, 439], hair=[0, 439, 192, 613],
                  face=('durandal_idle_hurt.png', [26, 204, 185, 264]), neck=(270, 14), tilt=-8),
     'move': dict(sheet='durandal_move.png', body=[1, 715, 490, 1024], head=[0, 365, 157, 538], hair=[0, 538, 191, 715],
@@ -131,12 +136,30 @@ def head_image(cfg):
     return canvas, neck
 
 
+def layered_body(cfg):
+    """layers: [(상자, (x, y))] 를 뒤에서부터 차례로 겹쳐 몸통 하나로 만든다. 좌표는 첫 조각 기준이 아니라 공통 원점 기준."""
+    parts = [(piece(cfg['sheet'], box)[0], off) for box, off in cfg['layers']]
+    x0 = min(o[0] for _, o in parts)
+    y0 = min(o[1] for _, o in parts)
+    x1 = max(o[0] + im.width for im, o in parts)
+    y1 = max(o[1] + im.height for im, o in parts)
+    canvas = Image.new('RGBA', (x1 - x0, y1 - y0))
+    for im, (ox, oy) in parts:
+        canvas.alpha_composite(im, (ox - x0, oy - y0))
+    return canvas, (x0, y0)
+
+
 def compose(name, cfg):
-    body, _ = piece(cfg['sheet'], cfg['body'])
-    # 몸통 상자 기준 목 좌표를 실제로 잘린 몸통 기준으로 바꾼다
-    _, (bx, by) = piece(cfg['sheet'], cfg['body'])
-    nx = cfg['neck'][0] + cfg['body'][0] - bx
-    ny = cfg['neck'][1] + cfg['body'][1] - by
+    if cfg.get('layers'):
+        body, (ox, oy) = layered_body(cfg)
+        nx, ny = cfg['neck'][0] - ox, cfg['neck'][1] - oy
+        bx = by = 0
+        cfg = dict(cfg, body=[0, 0, 0, 0])
+    else:
+        body, (bx, by) = piece(cfg['sheet'], cfg['body'])
+        # 몸통 상자 기준 목 좌표를 실제로 잘린 몸통 기준으로 바꾼다
+        nx = cfg['neck'][0] + cfg['body'][0] - bx
+        ny = cfg['neck'][1] + cfg['body'][1] - by
     head, (hnx, hny) = head_image(cfg)
     if cfg.get('tilt'):
         # 목 위치를 중심으로 회전

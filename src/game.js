@@ -373,7 +373,8 @@
     markQueue(Aside, Bside);
     bleed(Bside, db);
     if (S.phaseEnded) return;
-    await sleep(260);
+    await sleep(200);
+    STG.begin();
     const ka = kindOf(da), kb = kindOf(db);
     let useA = true, useB = true, result;
     if (ka === 'atk' && kb === 'atk') {
@@ -403,8 +404,7 @@
     if (useA) Aside.i++;
     if (useB) Bside.i++;
     markQueue(Aside, Bside);
-    await sleep(da.furioso ? 1700 : 760);
-    restPoses();
+    await STG.play();
   }
 
   // ---------- 자세 고르기 ----------
@@ -429,11 +429,6 @@
     STG.spark();
   }
 
-  function restPoses() {
-    if (S.over || S.phaseEnded) return;
-    if (!S.roland.broken) STG.pose('roland', 'move');
-    if (!S.tiger.broken) STG.pose('tiger', 'move');
-  }
 
   // X가 공격, Y가 수비. [X 주사위 소모, Y 주사위 소모, 결과 문구]
   function atkVsDef(X, Y, vx, vy, dx, dy) {
@@ -547,13 +542,13 @@
     setEmblem(Y.who, null, null);
     bleed(X, dx);
     if (S.phaseEnded) return;
-    await sleep(220);
+    await sleep(180);
+    STG.begin();
     const result = hit(X, Y, v, dx);
     if (X.who === 'roland') showReadout(dx, v, null, null, result);
     else showReadout(null, null, dx, v, result);
     addLog(`일방 ${D.DICE[dx.t].label} ${v}: ${result}`);
-    await sleep(dx.furioso ? 1700 : 640);
-    restPoses();
+    await STG.play();
   }
 
   // ---------- 장면 종료 ----------

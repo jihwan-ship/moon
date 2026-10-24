@@ -369,8 +369,196 @@ window.JJAM_STAGE = (() => {
     scene.time.delayedCall(dur(260), () => a.spr.clearTint());
   }
 
+  // ---------- 합 한 번의 연출 ----------
+  // game.js가 판정하는 동안 begin()~play() 사이의 연출 호출을 모아 두었다가 한 흐름으로 재생한다.
+  const DIR = { roland: 1, tiger: -1 };
+  const WINDUP = { wheels_smash: 'wheels_swing' };
+  const ZOOM = 1.5;
+  const CENTER = (POS.clash.roland + POS.clash.tiger) / 2;
+  let rec = null;
+  const later = (ms, fn) => scene.time.delayedCall(dur(ms), fn);
+
+  function slide(who, x, ms, ease = 'Quad.easeOut') {
+    const a = st[who];
+    a.x = x;
+    scene.tweens.add({ targets: [a.spr, a.shadow, a.feet], x, duration: dur(ms), ease });
+  }
+
+  function hop(who, h, ms) {
+    scene.tweens.add({ targets: st[who].spr, y: GROUND - h, duration: dur(ms / 2), yoyo: true, ease: 'Quad.easeOut' });
+  }
+
+  function redFlash(who) {
+    const spr = st[who].spr;
+    spr.setTintFill(0xffffff);
+    later(50, () => spr.setTint(0xff5040));
+    later(320, () => spr.clearTint());
+  }
+
+  // 주사위가 날아오르는 분홍·하늘색 궤적
+  function tracers() {
+    for (const who of ['roland', 'tiger']) {
+      const other = who === 'roland' ? 'tiger' : 'roland';
+      const a = st[who], b = st[other];
+      const curve = new Phaser.Curves.QuadraticBezier(
+        new Phaser.Math.Vector2(a.x, GROUND - 120),
+        new Phaser.Math.Vector2((a.x + b.x) / 2 + DIR[who] * 40, GROUND - 560),
+        new Phaser.Math.Vector2(b.x + DIR[who] * 60, GROUND - 30),
+      );
+      const pts = curve.getPoints(48);
+      const g = scene.add.graphics().setDepth(34).setBlendMode(Phaser.BlendModes.ADD);
+      const col = who === 'roland' ? 0x8fe8ff : 0xff4f93;
+      const prog = { t: 0 };
+      scene.tweens.add({
+        targets: prog, t: 1, duration: dur(300), ease: 'Sine.easeOut',
+        onUpdate: () => {
+          const n = Math.max(2, Math.floor(prog.t * pts.length));
+          const from = Math.max(0, n - 18);
+          g.clear();
+          g.lineStyle(14, col, 0.25);
+          g.strokePoints(pts.slice(from, n));
+          g.lineStyle(5, col, 1);
+          g.strokePoints(pts.slice(from, n));
+        },
+        onComplete: () => scene.tweens.add({ targets: g, alpha: 0, duration: dur(180), onComplete: () => g.destroy() }),
+      });
+    }
+  }
+
+  function hitFx(h) {
+    const t = st[h.target];
+    const x = t.x;
+    const y = GROUND - 180;
+    const fxKey = h.attacker === 'roland' ? POSE_FX[h.pose] : TIGER_FX[h.pose];
+    const flip = h.attacker === 'tiger';
+    if (fxKey === 'muzzle') {
+      const a = st[h.attacker];
+      fxImage('muzzle', a.x + (flip ? -240 : 240), GROUND - 230, { flip: !flip, scale: 0.95 });
+      burst(x, y, 0xffffff, 1);
+    } else if (fxKey === 'debris') {
+      fxImage('debris', x, GROUND - 170, { scale: 0.8, hold: 420 });
+    } else if (fxKey === 'dash_trail') {
+      fxImage('dash_trail', x - DIR[h.attacker] * 160, y, { flip: !flip, scale: 0.95 });
+    } else if (fxKey) {
+      fxImage(fxKey, x, y, { flip: !flip, angle: Phaser.Math.Between(-15, 15), scale: 1.15, hold: 320,
+        tint: h.attacker === 'tiger' && h.pose === 'claw' ? 0xffb070 : undefined });
+    }
+    burst(x, y, h.attacker === 'roland' ? 0xbfefff : 0xffb0c8, 1.1);
+    flash(0xffffff, h.isMax ? 0.35 : 0.15);
+    redFlash(h.target);
+    float(h.target, `-${h.real}`, 'dmg');
+    if (h.isMax) float(h.target, '최대피해!', 'max');
+    scene.cameras.main.shake(dur(h.isMax || h.real >= 12 ? 260 : 150), h.isMax || h.real >= 12 ? 0.012 : 0.006);
+  }
+
+  function exchange(r, done) {
+    const contact = { roland: CENTER - 105, tiger: CENTER + 105 };
+    const rest = { roland: POS.clash.roland, tiger: POS.clash.tiger };
+    const cam = scene.cameras.main;
+    const furioso = r.hit && r.hit.opts && r.hit.opts.furioso;
+    tracers();
+    // 1. 맞닿을 거리까지 돌진
+    for (const who of ['roland', 'tiger']) {
+      if (!st[who].broken) setPoseOf(who, 'move');
+      slide(who, contact[who], 160, 'Cubic.easeOut');
+    }
+    // 2. 준비 동작
+    later(140, () => {
+      for (const [who, pose] of Object.entries(r.strikes)) {
+        if (!st[who].broken) setPoseOf(who, WINDUP[pose] || 'move');
+      }
+    });
+    // 3. 적중 순간: 공격 자세로 파고들고, 아주 잠깐 멈춘 뒤 결과
+    later(250, () => {
+      for (const [who, pose] of Object.entries(r.strikes)) {
+        if (!st[who].broken) setPoseOf(who, pose);
+        slide(who, contact[who] + DIR[who] * 60, 70, 'Quad.easeOut');
+      }
+      cam.zoomTo(ZOOM + 0.07, dur(60), 'Quad.easeOut');
+      later(90, () => cam.zoomTo(ZOOM, dur(220), 'Sine.easeOut'));
+      if (furioso) {
+        const seq = ['zelkova_axe', 'ranga_claw', 'zelkova_crouch', 'thrust', 'mook_thrust', 'logic_pistols', 'slash', 'crystal', 'wheels_smash'];
+        seq.forEach((p, i) => later(115 * i, () => api.afterimage(p, st[r.hit.target].x)));
+        later(1080, () => {
+          const t = r.hit.target;
+          flash(0xffffff, 0.6);
+          burst(st[t].x, GROUND - 180, 0xffffff, 2.4);
+          if (!st[t].broken) setPoseOf(t, 'hurt');
+          redFlash(t);
+          slide(t, contact[t] - DIR[t] * 200, 300, 'Cubic.easeOut');
+          hop(t, 40, 300);
+          float(t, `-${r.hit.real}`, 'dmg');
+          if (r.hit.isMax) float(t, '최대피해!', 'max');
+          cam.shake(dur(400), 0.018);
+          r.floats.forEach((f) => float(...f));
+        });
+        return;
+      }
+      later(70, () => {
+        if (r.hit) {
+          const t = r.hit.target;
+          hitFx(r.hit);
+          if (!st[t].broken) setPoseOf(t, 'hurt');
+          slide(t, contact[t] - DIR[t] * (r.hit.isMax ? 190 : 140), 260, 'Cubic.easeOut');
+          hop(t, r.hit.isMax ? 36 : 22, 260);
+        }
+        for (const g of r.guards) {
+          if (!st[g.who].broken) setPoseOf(g.who, g.pose);
+          const ring = scene.add.image(st[g.who].x + DIR[g.who] * 70, GROUND - 190, 'ring').setDepth(30).setScale(0.5);
+          scene.tweens.add({ targets: ring, scale: 2, alpha: 0, duration: dur(450), onComplete: () => ring.destroy() });
+          burst(st[g.who].x + DIR[g.who] * 70, GROUND - 190, 0x9fd0ff, 0.8);
+          slide(g.who, contact[g.who] - DIR[g.who] * 50, 180);
+          const other = g.who === 'roland' ? 'tiger' : 'roland';
+          if (r.strikes[other]) slide(other, contact[other] - DIR[other] * 40, 180);
+          cam.shake(dur(120), 0.005);
+        }
+        if (r.dodge) {
+          const w = r.dodge;
+          if (!st[w].broken) setPoseOf(w, w === 'roland' ? 'evade' : 'move');
+          slide(w, contact[w] - DIR[w] * 170, 200, 'Cubic.easeOut');
+          scene.tweens.add({ targets: st[w].spr, alpha: 0.3, duration: dur(90), yoyo: true, repeat: 1 });
+          const other = w === 'roland' ? 'tiger' : 'roland';
+          slide(other, contact[other] + DIR[other] * 50, 160);
+          float(w, '회피', 'evade');
+        }
+        if (r.spark) {
+          spark();
+          for (const who of ['roland', 'tiger']) slide(who, contact[who] - DIR[who] * 60, 200);
+        }
+        r.floats.forEach((f) => float(...f));
+      });
+    });
+    const end = furioso ? 250 + 1450 : 250 + 600;
+    // 4. 제자리로
+    later(end, () => {
+      for (const who of ['roland', 'tiger']) {
+        if (!st[who].broken) setPoseOf(who, 'idle');
+        slide(who, rest[who], 220, 'Sine.easeInOut');
+      }
+    });
+    later(end + 240, done);
+  }
+
+  function spark() {
+    const x = (st.roland.x + st.tiger.x) / 2;
+    burst(x, GROUND - 190, 0xfff2c0, 1.3);
+    for (let i = 0; i < 8; i++) {
+      const sp = scene.add.image(x, GROUND - 190, 'star').setDepth(31).setScale(0.7);
+      scene.tweens.add({ targets: sp, x: x + Phaser.Math.Between(-160, 160), y: GROUND - 190 + Phaser.Math.Between(-110, 110), alpha: 0, duration: dur(460), onComplete: () => sp.destroy() });
+    }
+  }
+
   const api = {
     ready,
+    begin() {
+      rec = { strikes: {}, hit: null, guards: [], dodge: null, spark: false, floats: [] };
+    },
+    play() {
+      const r = rec;
+      rec = null;
+      if (!r || !scene || !st.roland) return Promise.resolve();
+      return new Promise((res) => exchange(r, res));
+    },
     W, H,
     init(parent) {
       const game = new Phaser.Game({
@@ -404,6 +592,7 @@ window.JJAM_STAGE = (() => {
               g.destroy();
             }
             st.arrows = this.add.graphics().setDepth(15);
+            st.dim = this.add.rectangle(W / 2, H / 2, W * 3, H * 3, 0x000000, 0).setDepth(2);
             st.roland = makeActor('roland', POS.idle.roland);
             st.tiger = makeActor('tiger', POS.idle.tiger);
             [st.roland, st.tiger].forEach((a) => { a.spr.setDepth(10); a.shadow.setDepth(5); a.feet.setDepth(11); });
@@ -477,24 +666,35 @@ window.JJAM_STAGE = (() => {
     },
     place(name) {
       if (!scene || !st.roland) return;
-      const p = POS[name];
-      moveActor('roland', p.roland);
-      moveActor('tiger', p.tiger);
+      const p = name === 'idle' ? POS.idle : POS.clash;
+      const cam = scene.cameras.main;
       if (name === 'idle') {
+        slide('roland', p.roland, 380, 'Sine.easeInOut');
+        slide('tiger', p.tiger, 380, 'Sine.easeInOut');
         if (!st.roland.broken) setPoseOf('roland', 'idle');
         if (!st.tiger.broken) setPoseOf('tiger', 'idle');
-        scene.cameras.main.zoomTo(1, dur(400), 'Sine.easeInOut');
-        scene.cameras.main.pan(W / 2, H / 2, dur(400), 'Sine.easeInOut');
-      } else {
+        cam.zoomTo(1, dur(420), 'Sine.easeInOut');
+        cam.pan(W / 2, H / 2, dur(420), 'Sine.easeInOut');
+        scene.tweens.add({ targets: st.dim, alpha: 0, duration: dur(400) });
+      } else if (!api.inCombat) {
         if (!st.roland.broken) setPoseOf('roland', 'move');
         if (!st.tiger.broken) setPoseOf('tiger', 'move');
-        scene.cameras.main.zoomTo(1.18, dur(400), 'Sine.easeInOut');
-        scene.cameras.main.pan((p.roland + p.tiger) / 2, H / 2 + 40, dur(400), 'Sine.easeInOut');
+        slide('roland', p.roland, 360, 'Cubic.easeOut');
+        slide('tiger', p.tiger, 360, 'Cubic.easeOut');
+        later(360, () => {
+          if (!st.roland.broken) setPoseOf('roland', 'idle');
+          if (!st.tiger.broken) setPoseOf('tiger', 'idle');
+        });
+        cam.zoomTo(ZOOM, dur(420), 'Cubic.easeOut');
+        cam.pan(CENTER, 420, dur(420), 'Cubic.easeOut');
+        scene.tweens.add({ targets: st.dim, alpha: 0.55, duration: dur(400) });
       }
+      api.inCombat = name !== 'idle';
     },
     pose: setPoseOf,
     // 공격 순간: 공격자 자세와 앞으로 내딛기
     strike(who, pose) {
+      if (rec) { rec.strikes[who] = pose; return; }
       const a = st[who];
       if (!a) return;
       if (!a.broken) setPoseOf(who, pose);
@@ -502,6 +702,7 @@ window.JJAM_STAGE = (() => {
       scene.tweens.add({ targets: [a.spr, a.shadow, a.feet], x: a.x + dir * 40, duration: dur(90), yoyo: true, hold: dur(220), ease: 'Quad.easeOut' });
     },
     hit(attacker, target, pose, real, isMax, opts = {}) {
+      if (rec) { rec.hit = { attacker, target, pose, real, isMax, opts }; return; }
       const t = st[target];
       if (!t) return;
       const x = t.x;
@@ -544,12 +745,14 @@ window.JJAM_STAGE = (() => {
       if (isMax || real >= 12) scene.cameras.main.shake(dur(220), 0.008);
     },
     guard(who, pose = 'guard') {
+      if (rec) { rec.guards.push({ who, pose }); return; }
       if (!st[who]) return;
       if (!st[who].broken) setPoseOf(who, pose);
       const r = scene.add.image(st[who].x + (who === 'roland' ? 60 : -60), GROUND - 180, 'ring').setDepth(30).setScale(0.4);
       scene.tweens.add({ targets: r, scale: 1.6, alpha: 0, duration: dur(450), onComplete: () => r.destroy() });
     },
     dodge(who) {
+      if (rec) { rec.dodge = who; return; }
       const a = st[who];
       if (!a) return;
       if (!a.broken) setPoseOf(who, who === 'roland' ? 'evade' : 'move');
@@ -559,15 +762,13 @@ window.JJAM_STAGE = (() => {
       float(who, '회피', 'evade');
     },
     spark() {
-      if (!st.roland) return;
-      const x = (st.roland.x + st.tiger.x) / 2;
-      burst(x, GROUND - 190, 0xfff2c0, 1);
-      for (let i = 0; i < 6; i++) {
-        const s = scene.add.image(x, GROUND - 190, 'star').setDepth(31).setScale(0.6);
-        scene.tweens.add({ targets: s, x: x + Phaser.Math.Between(-120, 120), y: GROUND - 190 + Phaser.Math.Between(-90, 90), alpha: 0, duration: dur(420), onComplete: () => s.destroy() });
-      }
+      if (rec) { rec.spark = true; return; }
+      if (st.roland) spark();
     },
-    float,
+    float(who, text, kind) {
+      if (rec) { rec.floats.push([who, text, kind]); return; }
+      float(who, text, kind);
+    },
     ready2: () => !!scene,
     furioso(on) {
       if (!scene) return;
