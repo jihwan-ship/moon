@@ -1,5 +1,5 @@
-# 원작(Library of Ruina)에서 추출한 리소스. 개인 테스트용이라 저장소에 올리지 않는다.
-assets/ruina/
+# 저장소에 올리지 않는 로컬 파일
+assets/
 __pycache__/
 build/
 

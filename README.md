@@ -42,10 +42,6 @@ godot --headless --path game --export-release "Web" ../build/web/index.html
 python3 tools/web_page.py
 ```
 
-## 이전 프로토타입
-
-저장소 최상위의 `index.html`, `src/`는 처음에 만든 Library of Ruina 팬게임 프로토타입입니다. 원작 그림(`assets/ruina/`)은 개인 테스트용이라 저장소에 넣지 않았습니다.
-
 ## 리소스
 
 캐릭터, 배경, 효과음, 음악은 모두 이 저장소에서 직접 만든 것입니다. 글꼴은 Pretendard와 Black Han Sans(둘 다 OFL 1.1)를 줄여서 넣었습니다(`game/fonts/LICENSE.txt`).
