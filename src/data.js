@@ -1,73 +1,93 @@
 // 게임 데이터. 로직(game.js)과 분리해 두면 나중에 라오루 모드(XML)로 옮기기 쉽다.
+// 카드 이름과 비용은 원작 검은침묵의 책장 기준, 주사위 수치는 임시값.
 window.JJAM_DATA = (() => {
   const d = (t, min, max, extra) => Object.assign({ t, min, max }, extra);
 
   // 주사위 종류. atk = 공격, def = 수비
   const DICE = {
-    slash: { label: '참격', short: '참', kind: 'atk' },
-    pierce: { label: '관통', short: '관', kind: 'atk' },
-    blunt: { label: '타격', short: '타', kind: 'atk' },
-    block: { label: '방어', short: '방', kind: 'def' },
-    evade: { label: '회피', short: '회', kind: 'def' },
+    slash: { label: '참격', kind: 'atk' },
+    pierce: { label: '관통', kind: 'atk' },
+    blunt: { label: '타격', kind: 'atk' },
+    block: { label: '방어', kind: 'def' },
+    evade: { label: '회피', kind: 'def' },
+  };
+
+  // 내성. 피해량 배율
+  const RESIST = {
+    fatal: { label: '취약', mult: 2 },
+    weak: { label: '약점', mult: 1.5 },
+    normal: { label: '보통', mult: 1 },
+    endure: { label: '견딤', mult: 0.5 },
+    ineff: { label: '내성', mult: 0.25 },
   };
 
   const ROLAND = {
-    hp: 140,
-    stagger: 70,
-    speedDice: 3,
-    startLight: 4,
-    maxLight: 5,
+    hp: 106,
+    stagger: 56,
+    speed: [2, 7],
+    speedDice: 3, // 지속능력 '속도 3'. 상병 단계(감정 단계 3 대용)부터 +1
+    resist: { slash: 'normal', pierce: 'normal', blunt: 'endure' },
+    baseLight: 4, // 짬타이거가 진급할 때마다 최대 빛 +1, 빛 전부 회복
     lightRegen: 3,
-    startHand: 5,
-    drawPerScene: 3,
-    phaseHeal: 20, // 짬타이거가 진급할 때 롤랑이 회복하는 체력
+    startHand: 4,
+    blackSilenceDraw: 2, // 지속능력 '검은침묵': 무대 시작 시 2장 더 뽑기
+    drawPerScene: 2,
+    phaseHeal: 10,
   };
 
+  // rarity: paperback(초록) hardcover(파랑) limited(보라) art(금색)
   const ROLAND_CARDS = {
-    durandal: { name: '듀랜달', workshop: true, cost: 1, dice: [d('slash', 4, 8), d('slash', 3, 6)] },
-    zelkova: { name: '젤코바 공방', workshop: true, cost: 2, dice: [d('slash', 4, 8), d('blunt', 4, 8)] },
+    zelkova: { name: '느티나무 공방', rarity: 'paperback', cost: 0, weapon: 'mace', dice: [d('slash', 3, 6), d('blunt', 3, 7)] },
+    ranga: { name: '랑아 공방', rarity: 'paperback', cost: 0, weapon: 'dagger', dice: [d('pierce', 2, 4), d('pierce', 2, 4), d('slash', 2, 5)] },
     oldboys: {
-      name: '올드 보이즈 공방', workshop: true, cost: 1,
-      dice: [d('block', 4, 8, { onWin: 'light' }), d('blunt', 3, 7)],
-      text: '방어 주사위가 이기면 빛 1 회복',
+      name: '늙은소년 공방', rarity: 'paperback', cost: 1, weapon: 'hammer',
+      dice: [d('block', 4, 8, { onWin: 'light' }), d('blunt', 4, 8)],
+      text: '방어 주사위가 합에서 이기면 빛 1 회복',
     },
-    allas: { name: '알라스 공방', workshop: true, cost: 2, dice: [d('pierce', 6, 11)] },
-    mook: { name: '묵 공방', workshop: true, cost: 2, dice: [d('evade', 4, 8), d('slash', 5, 9)] },
-    logic: { name: '로그 아뜰리에', workshop: true, cost: 1, dice: [d('pierce', 3, 6), d('pierce', 3, 6)] },
-    wheels: { name: '휠 인더스트리', workshop: true, cost: 3, dice: [d('blunt', 8, 15)] },
-    crystal: { name: '크리스탈 아뜰리에', workshop: true, cost: 2, dice: [d('slash', 3, 6), d('slash', 3, 6), d('slash', 3, 6)] },
-    ranga: { name: '랑가 공방', workshop: true, cost: 1, dice: [d('pierce', 2, 4), d('pierce', 2, 4), d('pierce', 2, 4)] },
-    step: { name: '검은 침묵의 발걸음', cost: 0, dice: [d('evade', 4, 8)] },
-    guard: { name: '막아서기', cost: 0, dice: [d('block', 3, 7)] },
+    allas: { name: '알라스 공방', rarity: 'hardcover', cost: 2, weapon: 'spear', dice: [d('pierce', 4, 8), d('pierce', 5, 9)] },
+    mook: { name: '묵 공방', rarity: 'hardcover', cost: 2, weapon: 'katana', dice: [d('slash', 6, 12)] },
+    logic: { name: '로직 아틀리에', rarity: 'hardcover', cost: 2, weapon: 'gun', dice: [d('pierce', 4, 8), d('pierce', 5, 8), d('blunt', 7, 12)] },
+    durandal: { name: '듀랑달', rarity: 'limited', cost: 2, weapon: 'sword', dice: [d('slash', 5, 9), d('slash', 5, 9)] },
+    crystal: {
+      name: '크리스탈 아틀리에', rarity: 'hardcover', cost: 3, weapon: 'dual',
+      dice: [d('evade', 4, 8), d('slash', 5, 9), d('slash', 5, 9), d('slash', 4, 8, { counter: true })],
+      text: '노란 주사위는 반격. 이번 장면에 일방 공격을 받으면 대신 합을 한다',
+    },
+    wheels: { name: '휠즈 인더스트리', rarity: 'limited', cost: 4, weapon: 'greatsword', dice: [d('blunt', 10, 18), d('block', 5, 9)] },
     furioso: {
-      name: 'Furioso', cost: 0, special: 'furioso',
-      dice: [d('slash', 5, 9), d('pierce', 5, 9), d('blunt', 5, 9), d('slash', 6, 10), d('pierce', 6, 10), d('blunt', 7, 12)],
-      text: '아홉 공방 카드를 모두 쓰면 손에 들어온다',
+      name: 'Furioso', rarity: 'art', cost: 0, special: 'furioso', weapon: 'sword',
+      dice: [
+        d('blunt', 4, 8, { w: 'mace' }), d('pierce', 3, 6, { w: 'dagger' }), d('blunt', 4, 8, { w: 'hammer' }),
+        d('pierce', 5, 9, { w: 'spear' }), d('slash', 5, 9, { w: 'katana' }), d('pierce', 4, 8, { w: 'gun' }),
+        d('slash', 5, 9, { w: 'dual' }), d('blunt', 7, 12, { w: 'greatsword' }), d('slash', 6, 10, { w: 'sword' }),
+      ],
+      text: '아홉 공방 책장을 모두 쓰면 손에 들어온다. 쓰고 나면 기록이 초기화된다',
     },
   };
 
-  const ROLAND_DECK = ['durandal', 'zelkova', 'oldboys', 'allas', 'mook', 'logic', 'wheels', 'crystal', 'ranga', 'step', 'guard'];
-  const WORKSHOPS = ROLAND_DECK.filter((id) => ROLAND_CARDS[id].workshop);
+  const ROLAND_DECK = ['zelkova', 'ranga', 'oldboys', 'allas', 'mook', 'logic', 'durandal', 'crystal', 'wheels'];
+
+  const TIGER_RESIST = { slash: 'normal', pierce: 'weak', blunt: 'endure' };
 
   const TIGER_CARDS = {
-    punch: { name: '냥냥펀치', dice: [d('blunt', 3, 6), d('slash', 2, 5)] },
-    scratch: { name: '할퀴기', dice: [d('slash', 4, 8)] },
+    punch: { name: '냥냥펀치', prop: 'claw', dice: [d('blunt', 4, 7), d('slash', 3, 6)] },
+    scratch: { name: '할퀴기', prop: 'claw', dice: [d('slash', 5, 9)] },
     eat: {
-      name: '짬밥 섭취', gimmick: 'heal', heal: 0.2, dice: [d('block', 4, 8)],
-      text: '이 카드에 피해를 주지 못하면 장면 끝에 체력 20% 회복',
+      name: '짬밥 섭취', prop: 'tray', gimmick: 'heal', heal: 0.2, dice: [d('block', 5, 9)],
+      text: '이 책장에 피해를 주지 못하면 장면 끝에 체력 20% 회복',
     },
     k2: {
-      name: 'K2 점사', ammo: 3, weight: 1.5, dice: [d('pierce', 3, 7), d('pierce', 3, 7), d('pierce', 3, 7)],
+      name: 'K2 점사', prop: 'rifle', ammo: 3, weight: 1.5, dice: [d('pierce', 4, 8), d('pierce', 4, 8), d('pierce', 4, 8)],
       text: '탄약 3 소모',
     },
-    supply: { name: '탄약 보급', gimmick: 'supply', dice: [], text: '주사위 없음. 탄약을 채운다. 반격 기회!' },
-    discipline: { name: '군기 잡기', dice: [d('blunt', 4, 8), d('slash', 4, 8)] },
+    supply: { name: '탄약 보급', prop: 'crate', gimmick: 'supply', dice: [], text: '주사위 없음. 탄약을 채운다. 반격 기회!' },
+    discipline: { name: '군기 잡기', prop: 'baton', dice: [d('blunt', 5, 9), d('slash', 5, 9)] },
     pushup: {
-      name: '얼차려: 엎드려뻗쳐', onHit: 'pushup', weight: 1.3, dice: [d('blunt', 5, 9)],
+      name: '얼차려: 엎드려뻗쳐', prop: 'whistle', onHit: 'pushup', weight: 1.3, dice: [d('blunt', 6, 10)],
       text: '적중 시 다음 장면 롤랑 속도 주사위 -1',
     },
     duckwalk: {
-      name: '얼차려: 오리걸음', onHit: 'duckwalk', weight: 1.3, dice: [d('slash', 3, 6), d('blunt', 3, 6)],
+      name: '얼차려: 오리걸음', prop: 'whistle', onHit: 'duckwalk', weight: 1.3, dice: [d('slash', 4, 7), d('blunt', 4, 7)],
       text: '적중 시 다음 장면 롤랑 회피 주사위 사용 불가',
     },
   };
@@ -77,15 +97,15 @@ window.JJAM_DATA = (() => {
     duckwalk: { name: '오리걸음', desc: '회피 주사위 사용 불가' },
   };
 
-  // 짬타이거 계급(페이즈). 쓰러뜨리면 다음 계급으로 진급한다.
+  // 짬타이거 계급(막). 쓰러뜨리면 다음 계급으로 진급한다.
   const PHASES = [
-    { rank: '이병', hp: 50, stagger: 30, dice: 2, maxAmmo: 0, pool: ['punch', 'scratch', 'eat'],
+    { rank: '이병', hp: 60, stagger: 34, dice: 2, speed: [1, 4], maxAmmo: 0, pool: ['punch', 'scratch', 'eat'],
       intro: '이병! 짬! 타이거! 냥!' },
-    { rank: '일병', hp: 70, stagger: 40, dice: 2, maxAmmo: 6, pool: ['punch', 'scratch', 'eat', 'k2'],
+    { rank: '일병', hp: 95, stagger: 44, dice: 2, speed: [2, 5], maxAmmo: 6, pool: ['punch', 'scratch', 'eat', 'k2'],
       intro: '이제 총도 쏠 줄 안다냥.' },
-    { rank: '상병', hp: 90, stagger: 50, dice: 3, maxAmmo: 6, pool: ['punch', 'scratch', 'eat', 'k2', 'discipline'],
+    { rank: '상병', hp: 125, stagger: 54, dice: 3, speed: [2, 6], maxAmmo: 6, pool: ['punch', 'scratch', 'eat', 'k2', 'discipline'],
       intro: '상병 꺾였다냥. 짬통은 내 거다냥.' },
-    { rank: '병장', hp: 120, stagger: 60, dice: 3, maxAmmo: 6, pool: ['scratch', 'eat', 'k2', 'discipline', 'pushup', 'duckwalk'],
+    { rank: '병장', hp: 165, stagger: 64, dice: 3, speed: [3, 7], maxAmmo: 6, pool: ['scratch', 'eat', 'k2', 'discipline', 'pushup', 'duckwalk'],
       intro: '말년 병장 건드리면 어떻게 되는지 알려주겠다냥.' },
   ];
 
@@ -116,5 +136,5 @@ window.JJAM_DATA = (() => {
     },
   };
 
-  return { DICE, ROLAND, ROLAND_CARDS, ROLAND_DECK, WORKSHOPS, TIGER_CARDS, STATUS, PHASES, LINES };
+  return { DICE, RESIST, ROLAND, ROLAND_CARDS, ROLAND_DECK, TIGER_RESIST, TIGER_CARDS, STATUS, PHASES, LINES };
 })();

@@ -7,95 +7,70 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@700;800&family=IBM+Plex+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@700;800&family=IBM+Plex+Sans+KR:wght@400;500;700&family=Cinzel:wght@700&family=JetBrains+Mono:wght@500;700&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="app">
-  <header class="top">
-    <div class="brand">
-      <span class="eyebrow">비공식 팬게임 · 접대 프로토타입</span>
-      <h1>롤랑 <em>대</em> 짬타이거</h1>
+  <header class="hud">
+    <div class="hudUnit r">
+      <div class="ring" id="rRing"><div class="face" id="rFace"></div></div>
+      <div class="hudInfo">
+        <div class="hudName">롤랑 <span class="tag gold">검은 침묵</span></div>
+        <div class="nums"><span class="hpN" id="rHp"></span><span class="stN" id="rSt"></span></div>
+        <div class="light" id="lightPips" aria-label="빛"></div>
+      </div>
     </div>
-    <div class="sceneBox">
-      <span id="sceneNo" class="sceneNo">장면 1</span>
-      <button type="button" id="fastBtn" class="ghost" aria-pressed="false">빠르게</button>
+    <div class="hudMid">
+      <span class="sceneNo" id="sceneNo">장면 1</span>
+      <ol class="phaseDots" id="phaseDots" aria-label="짬타이거 계급"></ol>
+    </div>
+    <div class="hudUnit t">
+      <div class="hudInfo">
+        <div class="hudName"><span class="tag olive" id="tigerRank">이병</span> 짬타이거</div>
+        <div class="nums"><span class="hpN" id="tHp"></span><span class="stN" id="tSt"></span></div>
+        <div class="tExtra" id="tigerExtra"></div>
+      </div>
+      <div class="ring" id="tRing"><div class="face" id="tFace"></div></div>
     </div>
   </header>
+  <div class="rExtra" id="rolandExtra"></div>
 
-  <section class="unit enemy" id="tigerPanel" aria-label="짬타이거">
-    <div class="portrait">
-      <svg viewBox="0 0 64 64" aria-hidden="true">
-        <path d="M13 28 L9 7 L27 18 Z" fill="#e0892f"/>
-        <path d="M51 28 L55 7 L37 18 Z" fill="#e0892f"/>
-        <circle cx="32" cy="37" r="20" fill="#e0892f"/>
-        <path d="M17 33 h6 M16 39 h6 M47 33 h-6 M48 39 h-6 M32 26 v4" stroke="#2a1a0c" stroke-width="2.4" stroke-linecap="round"/>
-        <path d="M13 22 Q32 2 51 22 Z" fill="#5f6b35"/>
-        <rect x="10" y="21" width="44" height="4.5" rx="2.2" fill="#4a5429"/>
-        <ellipse cx="25" cy="36" rx="2.6" ry="3.3" fill="#1a120a"/>
-        <ellipse cx="39" cy="36" rx="2.6" ry="3.3" fill="#1a120a"/>
-        <path d="M29.5 42 h5 l-2.5 2.6 Z" fill="#7a3a2a"/>
-        <path d="M32 44.6 q-3 3 -6 1 M32 44.6 q3 3 6 1" stroke="#2a1a0c" stroke-width="1.6" fill="none" stroke-linecap="round"/>
-        <path d="M14 44 l-8 -1 M14 47 l-8 2 M50 44 l8 -1 M50 47 l8 2" stroke="#f3d9b5" stroke-width="1.1" stroke-linecap="round"/>
-      </svg>
-    </div>
-    <div class="info">
-      <div class="nameRow">
-        <span class="rank" id="tigerRank">이병</span>
-        <strong class="uName">짬타이거</strong>
-        <ol class="phaseDots" id="phaseDots" aria-label="계급"></ol>
+  <section class="stage" id="stage" aria-label="무대">
+    <div class="stageInner" id="stageInner">
+      <div class="bg" aria-hidden="true"><div class="wall"></div><div class="floor"></div></div>
+      <svg class="arrows" id="arrows" aria-hidden="true"></svg>
+      <div class="actor roland" id="actorR">
+        <div class="diceRow" id="rDiceRow"></div>
+        <div class="sprite" id="spriteR"></div>
+        <div class="feet" id="feetR"></div>
       </div>
-      <div class="bars">
-        <div class="bar hp" id="tigerHp"><span class="bLabel">체력</span><span class="bTrack"><span class="bFill"></span></span><span class="bNum" id="tigerHpNum"></span></div>
-        <div class="bar st" id="tigerSt"><span class="bLabel">흐트러짐</span><span class="bTrack"><span class="bFill"></span></span><span class="bNum" id="tigerStNum"></span></div>
+      <div class="actor tiger" id="actorT">
+        <div class="diceRow" id="tDiceRow"></div>
+        <div class="sprite" id="spriteT"></div>
+        <div class="feet" id="feetT"></div>
       </div>
-      <div class="extra" id="tigerExtra"></div>
-      <p class="line" id="tigerLine"></p>
+      <div class="fx" id="fx" aria-hidden="true"></div>
     </div>
-    <div class="pop" id="tigerPop" aria-hidden="true"></div>
-  </section>
-
-  <section class="laneWrap" aria-label="합 배치">
-    <div class="lane" id="lane"></div>
-    <div class="banner" id="banner" hidden></div>
+    <div class="cbanner roland" id="bannerR" hidden></div>
+    <div class="cbanner tiger" id="bannerT" hidden></div>
+    <p class="say r" id="rolandLine"></p>
+    <p class="say t" id="tigerLine"></p>
+    <div class="furiosoTitle" id="furiosoTitle" hidden>Furioso</div>
+    <div class="actCard" id="actCard" hidden><span class="acBig"></span><span class="acSub"></span></div>
   </section>
 
   <div class="readout" id="readout" aria-live="polite"></div>
 
-  <section class="unit player" id="rolandPanel" aria-label="롤랑">
-    <div class="portrait">
-      <svg viewBox="0 0 64 64" aria-hidden="true">
-        <path d="M7 64 Q9 43 32 41 Q55 43 57 64 Z" fill="#0c0a09" stroke="#4a3f33" stroke-width="1"/>
-        <path d="M25 43 L32 55 L39 43 Z" fill="#e8e0cf"/>
-        <path d="M30.5 46 L32 59 L33.5 46 Z" fill="#1c1a19"/>
-        <circle cx="32" cy="28" r="12" fill="#d9b99a"/>
-        <path d="M19 28 Q19 12 33 13 Q46 13 45 29 Q43 21 37 19 Q31 24 22 22 Z" fill="#1a1512"/>
-        <path d="M26 29.5 h4 M34 29.5 h4" stroke="#2a1d14" stroke-width="1.8" stroke-linecap="round"/>
-        <path d="M29 35 q3 1.4 6 0" stroke="#7a4a35" stroke-width="1.4" fill="none" stroke-linecap="round"/>
-      </svg>
-    </div>
-    <div class="info">
-      <div class="nameRow">
-        <span class="rank gold">검은 침묵</span>
-        <strong class="uName">롤랑</strong>
-      </div>
-      <div class="bars">
-        <div class="bar hp" id="rolandHp"><span class="bLabel">체력</span><span class="bTrack"><span class="bFill"></span></span><span class="bNum" id="rolandHpNum"></span></div>
-        <div class="bar st" id="rolandSt"><span class="bLabel">흐트러짐</span><span class="bTrack"><span class="bFill"></span></span><span class="bNum" id="rolandStNum"></span></div>
-        <div class="bar light"><span class="bLabel">빛</span><span class="lightPips" id="lightPips"></span><span class="bNum" id="lightNum"></span></div>
-      </div>
-      <div class="extra" id="rolandExtra"></div>
-      <p class="line" id="rolandLine"></p>
-    </div>
-    <div class="pop" id="rolandPop" aria-hidden="true"></div>
-  </section>
+  <section class="panel" id="panel" aria-label="책장 정보"></section>
 
   <section class="handWrap" aria-label="손패">
-    <div class="secHead"><h2>손패</h2><span id="deckInfo" class="meta"></span></div>
+    <div class="secHead"><h2>전투 책장</h2><span id="deckInfo" class="meta"></span></div>
     <div class="hand" id="hand"></div>
   </section>
 
   <div class="actions">
+    <button type="button" id="fastBtn" class="ghost" aria-pressed="false">빠른 진행</button>
     <button type="button" id="goBtn" class="primary">합 진행</button>
   </div>
 
@@ -112,27 +87,31 @@
   <details class="fold">
     <summary>규칙</summary>
     <div class="rules">
-      <p><b>장면</b>마다 롤랑은 속도 주사위 3개에 카드를 하나씩 놓습니다. 같은 줄에 있는 짬타이거 카드와 합을 겨루고, 상대가 없는 줄은 일방 공격이 됩니다.</p>
-      <p><b>합</b>: 주사위를 하나씩 굴려 비교합니다. 공격끼리는 높은 쪽이 그 값만큼 피해를 줍니다. 공격이 방어보다 높으면 차이만큼 피해를 주고, 방어가 이기면 차이만큼 흐트러짐 피해를 돌려줍니다. 회피가 이기면 흐트러짐을 회복하고 그 회피 주사위를 다시 씁니다.</p>
-      <p><b>흐트러짐</b>: 흐트러짐 수치가 0이 되면 남은 행동이 취소되고 다음 장면 동안 행동하지 못하며 받는 피해가 2배가 됩니다.</p>
-      <p><b>빛</b>: 카드 비용입니다. 장면마다 3씩 회복합니다.</p>
-      <p><b>짬타이거</b>: 이병, 일병, 상병, 병장 순서로 진급합니다. 짬밥 섭취는 합으로 막아야 회복을 막을 수 있습니다. 탄약이 떨어지면 보급하러 가느라 빈틈이 생깁니다. 병장은 얼차려를 겁니다.</p>
-      <p><b>Furioso</b>: 아홉 공방 카드를 모두 한 번씩 쓰면 손에 들어옵니다.</p>
+      <p><b>속도 주사위</b>: 장면마다 롤랑 머리 위에 속도 주사위가 뜹니다. 주사위를 고르고 전투 책장을 놓은 뒤, 짬타이거 주사위를 눌러 대상을 정합니다.</p>
+      <p><b>합</b>: 서로 상대 주사위를 노리거나, 롤랑 주사위가 더 빠르면 합을 합니다. 주황 화살표가 합, 하늘색은 롤랑의 일방 공격, 빨강은 짬타이거의 일방 공격입니다. 높은 속도부터 처리합니다.</p>
+      <p><b>주사위 판정</b>: 공격끼리는 높은 쪽이 피해를 줍니다. 공격이 방어보다 높으면 차이만큼 피해를 주고, 방어가 이기면 차이만큼 흐트러짐 피해를 돌려줍니다. 회피가 이기면 흐트러짐을 회복하고 그 주사위를 다시 씁니다. 노란 반격 주사위는 일방 공격을 받을 때 대신 합을 합니다.</p>
+      <p><b>내성</b>: 롤랑은 타격을 견딥니다(피해 절반). 짬타이거는 관통에 약하고(1.5배) 털이 두꺼워 타격을 견딥니다.</p>
+      <p><b>흐트러짐</b>: 흐트러짐 수치가 0이 되면 남은 행동이 취소되고, 다음 장면 동안 행동하지 못하며 받는 피해가 2배가 됩니다.</p>
+      <p><b>빛</b>: 책장 비용입니다. 장면마다 3씩 회복하고, 짬타이거가 진급할 때마다 최대치가 1 늘고 전부 회복합니다. 상병 단계부터 롤랑의 속도 주사위가 하나 늘어납니다.</p>
+      <p><b>짬타이거</b>: 이병, 일병, 상병, 병장 순서로 진급합니다. 짬밥 섭취는 합으로 피해를 줘야 회복을 막을 수 있습니다. 탄약이 떨어지면 보급하러 가느라 빈틈이 생깁니다. 병장은 얼차려를 겁니다.</p>
+      <p><b>Furioso</b>: 아홉 공방 책장을 모두 한 번씩 쓰면 손에 들어옵니다.</p>
     </div>
   </details>
 
-  <footer class="foot">Project Moon의 Library of Ruina를 바탕으로 만든 비공식 팬게임입니다. 그림은 임시 그래픽입니다.</footer>
+  <footer class="foot">Project Moon의 Library of Ruina를 바탕으로 만든 비공식 팬게임입니다. 그림은 모두 임시 그래픽입니다.</footer>
 </div>
 
 <div class="overlay" id="overlay" hidden>
   <div class="ovBox" role="dialog" aria-modal="true" aria-labelledby="ovTitle">
     <h2 id="ovTitle"></h2>
+    <span class="ovSub" id="ovSub"></span>
     <p id="ovText"></p>
     <button type="button" id="restartBtn" class="primary">다시 접대하기</button>
   </div>
 </div>
 
 <script src="src/data.js"></script>
+<script src="src/art.js"></script>
 <script src="src/game.js"></script>
 </body>
 </html>

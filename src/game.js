@@ -1,6 +1,7 @@
 'use strict';
 (() => {
   const D = window.JJAM_DATA;
+  const A = window.JJAM_ART;
   const $ = (id) => document.getElementById(id);
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const rand = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
@@ -13,7 +14,7 @@
     return arr;
   };
   let fast = false;
-  const sleep = (ms) => new Promise((r) => setTimeout(r, fast || reduceMotion ? Math.min(ms, 90) : ms));
+  const sleep = (ms) => new Promise((r) => setTimeout(r, fast || reduceMotion ? Math.min(ms, 70) : ms));
 
   let uidSeq = 0;
   const inst = (id) => ({ uid: ++uidSeq, id, resolved: false });
@@ -21,6 +22,15 @@
   const rCard = (c) => D.ROLAND_CARDS[c.id];
   const kindOf = (die) => D.DICE[die.t].kind;
   const nm = (side) => (side.who === 'roland' ? '롤랑' : '짬타이거');
+  const WORKSHOPS = D.ROLAND_DECK;
+
+  // 무대 위 캐릭터 위치(%). idle은 계획 단계, 나머지는 합 연출
+  const POS = {
+    idle: { roland: 24, tiger: 76 },
+    clash: { roland: 39, tiger: 61 },
+    rAttack: { roland: 58, tiger: 74 },
+    tAttack: { roland: 26, tiger: 42 },
+  };
 
   let S;
 
@@ -32,19 +42,23 @@
       scene: 0, phase: 0, busy: false, over: null, phaseEnded: false,
       roland: {
         hp: r.hp, maxHp: r.hp, st: r.stagger, maxSt: r.stagger, broken: false, skip: false,
-        light: r.startLight, maxLight: r.maxLight, status: {}, pending: {},
+        light: r.baseLight, maxLight: r.baseLight, status: {}, pending: {}, counters: [],
       },
       tiger: null,
       deck: shuffle(D.ROLAND_DECK.map(inst)), discard: [], hand: [],
-      used: new Set(), slots: [], intents: [], selected: -1, active: -1,
+      used: new Set(), rDice: [], tDice: [], sel: -1, peek: -1, acting: null,
     };
     setupTiger(0);
-    draw(r.startHand);
+    draw(r.startHand + r.blackSilenceDraw);
     $('log').innerHTML = '';
     $('overlay').hidden = true;
+    setPose('idle');
+    setWeapon(null);
+    setProp(null);
     say('roland', pick(D.LINES.roland.start));
     say('tiger', D.PHASES[0].intro);
     addLog(`${D.PHASES[0].rank} 짬타이거가 나타났다.`);
+    actCard(1);
     startScene(true);
   }
 
@@ -62,14 +76,14 @@
         if (!S.discard.length) return;
         S.deck = shuffle(S.discard);
         S.discard = [];
-        addLog('버린 카드를 섞어 덱으로 되돌렸다.');
+        addLog('버린 책장을 섞어 덱으로 되돌렸다.');
       }
       S.hand.push(S.deck.pop());
     }
   }
 
   function startScene(first) {
-    const R = S.roland, T = S.tiger;
+    const R = S.roland, T = S.tiger, ph = D.PHASES[S.phase];
     S.scene++;
     if (!first) {
       R.light = Math.min(R.maxLight, R.light + D.ROLAND.lightRegen);
@@ -77,14 +91,19 @@
     }
     R.status = R.pending;
     R.pending = {};
+    R.counters = [];
     R.skip = R.broken;
     T.skip = T.broken;
-    const rDice = R.skip ? 0 : Math.max(1, D.ROLAND.speedDice - (R.status.pushup ? 1 : 0));
-    const tDice = T.skip ? 0 : D.PHASES[S.phase].dice;
-    S.slots = Array(rDice).fill(null);
-    S.intents = tigerChoose(tDice);
-    S.selected = rDice ? 0 : -1;
-    S.active = -1;
+    const extra = S.phase >= 2 ? 1 : 0;
+    const nR = R.skip ? 0 : Math.max(1, D.ROLAND.speedDice + extra - (R.status.pushup ? 1 : 0));
+    const nT = T.skip ? 0 : ph.dice;
+    S.rDice = Array.from({ length: nR }, () => ({ speed: rand(...D.ROLAND.speed), card: null, target: null }))
+      .sort((a, b) => b.speed - a.speed);
+    S.tDice = tigerChoose(nT).map((card) => ({ speed: rand(...ph.speed), card, target: nR ? rand(0, nR - 1) : -1 }))
+      .sort((a, b) => b.speed - a.speed);
+    S.sel = nR ? 0 : -1;
+    S.peek = -1;
+    S.acting = null;
     S.busy = false;
     if (R.status.pushup) {
       say('roland', pick(D.LINES.roland.pushup));
@@ -128,42 +147,89 @@
     return out;
   }
 
-  // ---------- 카드 배치 ----------
+  // ---------- 책장 배치 ----------
 
   function reservedLight() {
     if (S.busy) return 0;
-    return S.slots.reduce((s, c) => s + (c ? rCard(c).cost : 0), 0);
+    return S.rDice.reduce((s, d) => s + (d.card ? rCard(d.card).cost : 0), 0);
   }
   const availableLight = () => S.roland.light - reservedLight();
 
-  function onSlotTap(i) {
+  function defaultTarget(i) {
+    if (!S.tDice.length) return null;
+    const taken = new Set(S.rDice.filter((d, k) => k !== i && d.card).map((d) => d.target));
+    const rd = S.rDice[i];
+    let t = S.tDice.findIndex((td, k) => td.target === i && !taken.has(k));
+    if (t < 0) t = S.tDice.findIndex((td, k) => rd.speed > td.speed && !taken.has(k));
+    if (t < 0) t = S.tDice.findIndex((td, k) => !taken.has(k));
+    return t < 0 ? 0 : t;
+  }
+
+  function onRDieTap(i) {
     if (S.busy || S.over) return;
-    if (S.slots[i]) {
-      S.hand.push(S.slots[i]);
-      S.slots[i] = null;
+    const rd = S.rDice[i];
+    if (S.sel === i && rd.card) {
+      S.hand.push(rd.card);
+      rd.card = null;
+      rd.target = null;
     }
-    S.selected = i;
+    S.sel = i;
+    S.peek = -1;
+    render();
+  }
+
+  function onTDieTap(t) {
+    if (S.busy || S.over) return;
+    const rd = S.rDice[S.sel];
+    if (rd && rd.card) rd.target = t;
+    S.peek = t;
     render();
   }
 
   function onHandTap(uid) {
-    if (S.busy || S.over || !S.slots.length) return;
+    if (S.busy || S.over || !S.rDice.length) return;
     const idx = S.hand.findIndex((c) => c.uid === uid);
     if (idx < 0) return;
     const c = S.hand[idx];
     if (rCard(c).cost > availableLight()) {
-      notice('빛이 부족하다. 비용이 낮은 카드를 고르거나 배치한 카드를 빼자.');
+      notice('빛이 부족하다. 비용이 낮은 책장을 고르거나 배치한 책장을 빼자.');
       return;
     }
-    const slot = S.selected >= 0 && !S.slots[S.selected] ? S.selected : S.slots.findIndex((x) => !x);
-    if (slot < 0) {
-      notice('빈 주사위가 없다. 아래 주사위를 눌러 카드를 빼자.');
+    let i = S.sel >= 0 && !S.rDice[S.sel].card ? S.sel : S.rDice.findIndex((d) => !d.card);
+    if (i < 0) {
+      notice('빈 속도 주사위가 없다. 롤랑 머리 위 주사위를 두 번 눌러 책장을 빼자.');
       return;
     }
-    S.slots[slot] = c;
+    S.rDice[i].card = c;
+    S.rDice[i].target = defaultTarget(i);
     S.hand.splice(idx, 1);
-    S.selected = S.slots.findIndex((x) => !x);
+    S.sel = i;
+    S.peek = -1;
     render();
+  }
+
+  // 합 판정: 같은 대상을 서로 노리거나, 롤랑 주사위가 더 빠르면 상대 주사위를 끌어와 합을 한다.
+  function computeActions() {
+    const acts = [];
+    const claimed = new Set();
+    const order = S.rDice.map((d, i) => i).filter((i) => S.rDice[i].card)
+      .sort((a, b) => S.rDice[b].speed - S.rDice[a].speed);
+    for (const i of order) {
+      const rd = S.rDice[i];
+      const t = rd.target;
+      const td = t != null ? S.tDice[t] : null;
+      if (td && !claimed.has(t) && (td.target === i || rd.speed > td.speed)) {
+        claimed.add(t);
+        acts.push({ type: 'clash', r: i, t, speed: Math.max(rd.speed, td.speed) });
+      } else {
+        acts.push({ type: 'oneR', r: i, t: td ? t : null, speed: rd.speed });
+      }
+    }
+    S.tDice.forEach((td, t) => {
+      if (!claimed.has(t)) acts.push({ type: 'oneT', r: td.target >= 0 ? td.target : null, t, speed: td.speed });
+    });
+    acts.sort((a, b) => b.speed - a.speed || (a.type === 'oneT') - (b.type === 'oneT'));
+    return acts;
   }
 
   // ---------- 합 처리 ----------
@@ -171,58 +237,93 @@
   async function commit() {
     if (S.busy || S.over) return;
     const R = S.roland;
+    const acts = computeActions();
     R.light -= reservedLight();
     S.busy = true;
+    S.sel = -1;
+    $('stage').classList.add('combat');
     render();
-    const n = Math.max(S.slots.length, S.intents.length);
-    for (let i = 0; i < n; i++) {
+    await sleep(250);
+    for (const act of acts) {
       if (S.over || S.phaseEnded) break;
-      const rc = S.slots[i] || null;
-      const tc = S.intents[i] || null;
-      if (!rc && !tc) continue;
-      S.active = i;
-      render();
+      const rc = act.type !== 'oneT' ? S.rDice[act.r].card : null;
+      const tc = act.type !== 'oneR' ? S.tDice[act.t].card : null;
+      S.acting = act;
+      renderDice();
       await resolvePair(rc, tc);
-      render();
+      renderHUD();
     }
-    S.active = -1;
-    await sleep(300);
+    S.acting = null;
+    hideBanners();
+    setPose('idle');
+    setWeapon(null);
+    setProp(null);
+    $('stage').classList.remove('combat', 'furioso');
+    await sleep(350);
     endScene();
   }
 
-  function side(who, def, ref) {
+  function side(who, def, ref, q) {
     const u = who === 'roland' ? S.roland : S.tiger;
-    let q = def ? def.dice.slice() : [];
-    if (who === 'roland' && S.roland.status.duckwalk) q = q.filter((x) => x.t !== 'evade');
+    if (!q) {
+      q = def ? def.dice.filter((x) => !x.counter) : [];
+      if (who === 'roland' && S.roland.status.duckwalk) q = q.filter((x) => x.t !== 'evade');
+    }
     return { who, u, def, ref, q, i: 0, hitApplied: false };
   }
 
   async function resolvePair(rc, tc) {
     const R = S.roland, T = S.tiger;
-    if (rc && R.broken) { addLog(`롤랑이 흐트러져 ${rCard(rc).name} 카드가 취소됐다.`); rc = null; }
-    if (tc && T.broken) { addLog(`짬타이거가 흐트러져 ${tc.def.name} 카드가 취소됐다.`); tc = null; }
+    if (rc && R.broken) { addLog(`롤랑이 흐트러져 ${rCard(rc).name} 책장이 취소됐다.`); rc = null; }
+    if (tc && T.broken) { addLog(`짬타이거가 흐트러져 ${tc.def.name} 책장이 취소됐다.`); tc = null; }
     if (!rc && !tc) return;
-    const A = side('roland', rc ? rCard(rc) : null, rc);
-    const B = side('tiger', tc ? tc.def : null, tc);
+
+    let Aside;
+    if (rc) {
+      Aside = side('roland', rCard(rc), rc);
+    } else if (R.counters.length && !R.broken) {
+      // 반격 주사위가 남아 있으면 일방 공격 대신 합을 한다
+      const c = R.counters.shift();
+      Aside = side('roland', { name: `반격 · ${c.from}`, weapon: c.weapon, rarity: 'hardcover', dice: [c.die] }, null, [c.die]);
+      addLog(`반격 주사위로 받아친다 (${c.from}).`);
+    } else {
+      Aside = side('roland', null, null);
+    }
+    const Bside = side('tiger', tc ? tc.def : null, tc);
     if (rc) useRoland(rc);
     if (tc) useTiger(tc);
-    if (rc && tc) addLog(`합: ${A.def.name} 대 ${B.def.name}`);
-    else if (rc) addLog(`일방 공격: ${A.def.name}`);
-    else addLog(`일방 공격: 짬타이거의 ${B.def.name}`);
-    await sleep(350);
+
+    const furioso = Aside.def && Aside.def.special === 'furioso';
+    const hasA = Aside.q.length > 0 || !!rc;
+    if (hasA && tc) addLog(`합: ${Aside.def.name} 대 ${Bside.def.name}`);
+    else if (hasA) addLog(`일방 공격: ${Aside.def.name}`);
+    else addLog(`일방 공격: 짬타이거의 ${Bside.def.name}`);
+
+    setPose(hasA && tc ? 'clash' : hasA ? 'rAttack' : 'tAttack');
+    setWeapon(Aside.def ? Aside.def.weapon : null);
+    setProp(Bside.def ? Bside.def.prop : null);
+    showBanners(Aside, Bside);
+    if (furioso) await furiosoIntro();
+    await sleep(420);
+
     while (!S.over && !S.phaseEnded) {
-      const aHas = A.i < A.q.length && !R.broken;
-      const bHas = B.i < B.q.length && !T.broken;
-      if (aHas && bHas) await dicePair(A, B);
-      else if (aHas) await oneSided(A, B);
-      else if (bHas) await oneSided(B, A);
+      const aHas = Aside.i < Aside.q.length && !R.broken;
+      const bHas = Bside.i < Bside.q.length && !T.broken;
+      if (aHas && bHas) await dicePair(Aside, Bside);
+      else if (aHas) await oneSided(Aside, Bside);
+      else if (bHas) await oneSided(Bside, Aside);
       else break;
     }
+    await sleep(200);
+    hideBanners();
   }
 
   function useRoland(rc) {
     rc.resolved = true;
     const def = rCard(rc);
+    for (const die of def.dice) {
+      if (die.counter) S.roland.counters.push({ die, from: def.name, weapon: def.weapon });
+    }
     if (def.special === 'furioso') say('roland', pick(D.LINES.roland.furioso));
     else if (Math.random() < 0.2) say('roland', pick(D.LINES.roland.attack));
   }
@@ -245,36 +346,46 @@
   }
 
   // A는 항상 롤랑, B는 항상 짬타이거
-  async function dicePair(A, B) {
-    const da = A.q[A.i], db = B.q[B.i];
+  async function dicePair(Aside, Bside) {
+    const da = Aside.q[Aside.i], db = Bside.q[Bside.i];
     const va = rand(da.min, da.max), vb = rand(db.min, db.max);
+    if (da.w) setWeapon(da.w);
+    setEmblem('roland', da, va);
+    setEmblem('tiger', db, vb);
+    markQueue(Aside, Bside);
+    lunge();
+    await sleep(230);
     const ka = kindOf(da), kb = kindOf(db);
     let useA = true, useB = true, result;
     if (ka === 'atk' && kb === 'atk') {
-      if (va > vb) result = hit(A, B, va);
-      else if (vb > va) result = hit(B, A, vb);
-      else result = '동점, 서로 상쇄';
+      if (va > vb) result = hit(Aside, Bside, va, da);
+      else if (vb > va) result = hit(Bside, Aside, vb, db);
+      else { result = '동점, 서로 상쇄'; fxSpark(); }
     } else if (ka === 'atk') {
-      [useA, useB, result] = atkVsDef(A, B, va, vb, da, db);
+      [useA, useB, result] = atkVsDef(Aside, Bside, va, vb, da, db);
     } else if (kb === 'atk') {
-      [useB, useA, result] = atkVsDef(B, A, vb, va, db, da);
+      [useB, useA, result] = atkVsDef(Bside, Aside, vb, va, db, da);
     } else if (da.t === 'block' && db.t === 'block' && va !== vb) {
-      const [w, l] = va > vb ? [A, B] : [B, A];
+      const [w, l] = va > vb ? [Aside, Bside] : [Bside, Aside];
+      fxShield(w.who);
       result = staggerHit(l, Math.abs(va - vb), w);
     } else {
       result = '서로 수비, 효과 없음';
+      fxSpark();
     }
     showReadout(da, va, db, vb, result);
     addLog(`${D.DICE[da.t].label} ${va} 대 ${D.DICE[db.t].label} ${vb}: ${result}`);
-    if (useA) A.i++;
-    if (useB) B.i++;
-    await sleep(700);
+    if (useA) Aside.i++;
+    if (useB) Bside.i++;
+    markQueue(Aside, Bside);
+    await sleep(Aside.def && Aside.def.special === 'furioso' ? 420 : 720);
   }
 
   // X가 공격, Y가 수비. [X 주사위 소모, Y 주사위 소모, 결과 문구]
   function atkVsDef(X, Y, vx, vy, dx, dy) {
     if (dy.t === 'block') {
-      if (vx > vy) return [true, true, hit(X, Y, vx - vy)];
+      if (vx > vy) return [true, true, hit(X, Y, vx - vy, dx)];
+      fxShield(Y.who);
       if (vy > vx) {
         onWin(Y, dy);
         return [true, true, staggerHit(X, vy - vx, Y)];
@@ -284,31 +395,43 @@
     if (vy > vx) {
       onWin(Y, dy);
       if (!Y.u.broken) Y.u.st = Math.min(Y.u.maxSt, Y.u.st + vy);
-      pop(Y.who, '회피', 'evade');
+      fxDodge(Y.who);
+      fxFloat(Y.who, '회피', 'evade');
       return [true, false, `${nm(Y)} 회피 성공, 흐트러짐 ${vy} 회복 (회피 주사위 재사용)`];
     }
-    if (vx > vy) return [true, true, hit(X, Y, vx)];
+    if (vx > vy) return [true, true, hit(X, Y, vx, dx)];
+    fxSpark();
     return [true, true, '동점, 서로 상쇄'];
   }
 
-  function onWin(side, die) {
-    if (die.onWin === 'light' && side.who === 'roland') {
+  function onWin(sd, die) {
+    if (die.onWin === 'light' && sd.who === 'roland') {
       const R = S.roland;
       if (R.light < R.maxLight) {
         R.light++;
-        pop('roland', '빛 +1', 'light');
+        fxFloat('roland', '빛 +1', 'light');
       }
     }
   }
 
-  function hit(X, Y, dmg) {
+  function resistOf(who, t) {
+    const table = who === 'roland' ? D.ROLAND.resist : D.TIGER_RESIST;
+    return D.RESIST[table[t] || 'normal'];
+  }
+
+  function hit(X, Y, value, die) {
     const u = Y.u;
+    const res = resistOf(Y.who, die.t);
     const mult = u.broken ? 2 : 1;
-    const real = dmg * mult;
+    const real = Math.max(1, Math.round(value * res.mult * mult));
+    const stDmg = Math.max(1, Math.round(value * res.mult));
     u.hp = Math.max(0, u.hp - real);
-    pop(Y.who, `-${real}`, 'dmg');
-    let txt = `${nm(X)} 승리, ${nm(Y)} 피해 ${real}${mult > 1 ? ' (흐트러짐 2배)' : ''}`;
-    txt += damageStagger(Y, dmg);
+    const isMax = value >= die.max;
+    fxHit(X, Y, die, real, isMax);
+    let txt = `${nm(X)} 승리, ${nm(Y)} 피해 ${real}`;
+    if (res.mult !== 1) txt += ` (${res.label})`;
+    if (mult > 1) txt += ' (흐트러짐 2배)';
+    txt += damageStagger(Y, stDmg);
     if (Y.ref && Y.def && Y.def.gimmick === 'heal') Y.ref.broken = true;
     if (X.def && X.def.onHit && !X.hitApplied && Y.who === 'roland') {
       X.hitApplied = true;
@@ -320,7 +443,7 @@
   }
 
   function staggerHit(Y, n, W) {
-    pop(Y.who, `-${n}`, 'st');
+    fxFloat(Y.who, `-${n}`, 'st');
     return `${nm(W)} 방어 성공, ${nm(Y)} 흐트러짐 피해 ${n}` + damageStagger(Y, n);
   }
 
@@ -330,7 +453,7 @@
     u.st = Math.max(0, u.st - n);
     if (u.st > 0) return '';
     u.broken = true;
-    pop(Y.who, '흐트러짐', 'brk');
+    fxFloat(Y.who, '흐트러짐!', 'brk');
     if (Y.who === 'tiger') {
       say('tiger', pick(D.LINES.tiger.stagger));
       say('roland', pick(D.LINES.roland.tigerStagger));
@@ -349,24 +472,31 @@
   async function oneSided(X, Y) {
     const dx = X.q[X.i];
     X.i++;
+    markQueue(X.who === 'roland' ? X : Y, X.who === 'roland' ? Y : X);
     if (kindOf(dx) !== 'atk') return; // 남은 수비 주사위는 아무 일도 하지 않는다
     const v = rand(dx.min, dx.max);
-    const result = hit(X, Y, v);
+    if (dx.w) setWeapon(dx.w);
+    setEmblem(X.who, dx, v);
+    setEmblem(Y.who, null, null);
+    lunge(X.who);
+    await sleep(200);
+    const result = hit(X, Y, v, dx);
     if (X.who === 'roland') showReadout(dx, v, null, null, result);
     else showReadout(null, null, dx, v, result);
     addLog(`일방 ${D.DICE[dx.t].label} ${v}: ${result}`);
-    await sleep(550);
+    await sleep(X.def && X.def.special === 'furioso' ? 380 : 600);
   }
 
   // ---------- 장면 종료 ----------
 
-  function cleanupSlots() {
+  function cleanupDice() {
     const R = S.roland;
-    for (const c of S.slots) {
+    for (const d of S.rDice) {
+      const c = d.card;
       if (!c) continue;
       const def = rCard(c);
       if (!c.resolved) {
-        // 취소된 카드는 손으로 돌려주고 빛도 돌려준다
+        // 취소된 책장은 손으로 돌려주고 빛도 돌려준다
         R.light = Math.min(R.maxLight, R.light + def.cost);
         S.hand.push(c);
         continue;
@@ -377,11 +507,11 @@
         addLog('Furioso를 썼다. 공방 기록이 처음부터 다시 쌓인다.');
         continue;
       }
-      if (def.workshop) S.used.add(c.id);
+      S.used.add(c.id);
       S.discard.push(c);
     }
-    S.slots = [];
-    if (S.used.size === D.WORKSHOPS.length && !S.hand.some((c) => c.id === 'furioso')) {
+    S.rDice = [];
+    if (S.used.size === WORKSHOPS.length && !S.hand.some((c) => c.id === 'furioso')) {
       S.hand.push(inst('furioso'));
       say('roland', pick(D.LINES.roland.furiosoReady));
       addLog('아홉 공방을 모두 썼다. Furioso가 손에 들어왔다!');
@@ -390,15 +520,16 @@
 
   function endScene() {
     const R = S.roland, T = S.tiger;
-    cleanupSlots();
+    cleanupDice();
     if (S.over) return finish();
     if (S.phaseEnded) return nextPhase();
-    for (const tc of S.intents) {
+    for (const td of S.tDice) {
+      const tc = td.card;
       if (tc.def.gimmick !== 'heal' || !tc.used) continue;
       if (!tc.broken && !T.broken) {
         const amt = Math.round(T.maxHp * tc.def.heal);
         T.hp = Math.min(T.maxHp, T.hp + amt);
-        pop('tiger', `+${amt}`, 'heal');
+        fxFloat('tiger', `+${amt}`, 'heal');
         say('tiger', pick(D.LINES.tiger.ate));
         addLog(`짬타이거가 짬밥을 다 먹고 체력을 ${amt} 회복했다.`);
       } else {
@@ -424,8 +555,8 @@
     const R = S.roland;
     say('tiger', pick(D.LINES.tiger.phaseDown));
     addLog(`${D.PHASES[S.phase].rank} 짬타이거를 쓰러뜨렸다.`);
-    render();
-    await sleep(900);
+    renderHUD();
+    await sleep(700);
     S.phase++;
     setupTiger(S.phase);
     S.phaseEnded = false;
@@ -433,9 +564,11 @@
     R.st = R.maxSt;
     R.broken = false;
     R.pending = {};
-    banner(`${D.PHASES[S.phase].rank} 진급`);
+    R.maxLight = D.ROLAND.baseLight + S.phase;
+    R.light = R.maxLight;
+    actCard(S.phase + 1);
     say('tiger', D.PHASES[S.phase].intro);
-    addLog(`짬타이거가 ${D.PHASES[S.phase].rank}으로 진급했다. 롤랑은 체력 ${D.ROLAND.phaseHeal}을 회복했다.`);
+    addLog(`짬타이거가 ${D.PHASES[S.phase].rank}으로 진급했다. 롤랑은 체력 ${D.ROLAND.phaseHeal}을 회복하고 빛을 모두 채웠다.`);
     startScene(false);
   }
 
@@ -449,37 +582,149 @@
       say('roland', pick(D.LINES.roland.lose));
     }
     render();
-    $('ovTitle').textContent = win ? '짬타이거 전역' : '롤랑 패배';
+    $('ovTitle').textContent = win ? 'VICTORY' : 'DEFEAT';
+    $('ovSub').textContent = win ? '짬타이거 접대 완료' : '롤랑이 쓰러졌다';
     $('ovText').textContent = win
       ? `${S.scene}장면 만에 병장 짬타이거까지 쓰러뜨렸다. 부대에 평화가 찾아왔다.`
       : `${D.PHASES[S.phase].rank} 짬타이거에게 당했다. 짬밥의 힘은 생각보다 강했다.`;
+    $('overlay').classList.toggle('lose', !win);
     $('overlay').hidden = false;
     $('restartBtn').focus();
   }
 
-  // ---------- 화면 ----------
+  // ---------- 무대 연출 ----------
+
+  let pos = { ...POS.idle };
+  function setPose(name) {
+    pos = { ...POS[name] };
+    $('actorR').style.setProperty('--x', pos.roland + '%');
+    $('actorT').style.setProperty('--x', pos.tiger + '%');
+  }
+  function setWeapon(w) { $('spriteR').innerHTML = A.roland(w); }
+  function setProp(p) { $('spriteT').innerHTML = A.tiger(p); }
+
+  function restart(el, cls) {
+    el.classList.remove(cls);
+    void el.offsetWidth;
+    el.classList.add(cls);
+  }
+
+  function lunge(who) {
+    if (!who || who === 'roland') restart($('actorR'), 'lunge');
+    if (!who || who === 'tiger') restart($('actorT'), 'lunge');
+  }
+
+  function showBanners(Aside, Bside) {
+    const fill = (el, sd) => {
+      if (!sd.def || (!sd.q.length && !sd.ref)) { el.hidden = true; return; }
+      const art = sd.def.weapon || sd.def.prop;
+      el.className = `cbanner ${sd.who} rar-${sd.def.rarity || 'enemy'}`;
+      el.innerHTML =
+        `<div class="cbArt">${A.glyph(art)}</div>` +
+        `<div class="cbBody"><b class="cbName">${sd.def.name}</b><span class="cbQueue">${sd.q.map((x) => A.dieIcon(x)).join('')}</span></div>` +
+        `<div class="emblem"><span class="emIcon"></span><b class="emVal"></b></div>`;
+      el.hidden = false;
+    };
+    fill($('bannerR'), Aside);
+    fill($('bannerT'), Bside);
+  }
+
+  function hideBanners() {
+    $('bannerR').hidden = true;
+    $('bannerT').hidden = true;
+  }
+
+  function setEmblem(who, die, v) {
+    const el = $(who === 'roland' ? 'bannerR' : 'bannerT');
+    if (el.hidden) return;
+    const em = el.querySelector('.emblem');
+    if (!die) { em.classList.remove('on'); return; }
+    em.querySelector('.emIcon').innerHTML = A.dieIcon(die);
+    em.querySelector('.emVal').textContent = v;
+    em.className = `emblem on ${kindOf(die)}${die.counter ? ' counter' : ''}`;
+    restart(em, 'pulse');
+  }
+
+  function markQueue(Aside, Bside) {
+    for (const sd of [Aside, Bside]) {
+      const el = $(sd.who === 'roland' ? 'bannerR' : 'bannerT');
+      if (el.hidden) continue;
+      el.querySelectorAll('.cbQueue .di').forEach((n, k) => n.classList.toggle('spent', k < sd.i));
+    }
+  }
+
+  function fxEl(cls, x, y, html = '') {
+    const el = document.createElement('div');
+    el.className = 'fxItem ' + cls;
+    el.style.left = x + '%';
+    el.style.top = y + '%';
+    el.innerHTML = html;
+    $('fx').appendChild(el);
+    setTimeout(() => el.remove(), 1300);
+    return el;
+  }
+
+  function fxFloat(who, text, cls) {
+    const x = pos[who] + (Math.random() * 6 - 3);
+    fxEl('float ' + cls, x, 30 + Math.random() * 6, text);
+  }
+
+  function fxHit(X, Y, die, real, isMax) {
+    const tx = pos[Y.who];
+    const color = X.who === 'roland' ? 'cyan' : 'pink';
+    const rot = Math.round(Math.random() * 70 - 35) + (X.who === 'roland' ? 0 : 180);
+    if (X.def && X.def.special === 'furioso') {
+      furiosoHit(die, tx);
+    } else {
+      fxEl(`slash ${color} ${die.t}`, tx, 50,
+        `<svg viewBox="0 0 100 100" style="transform:rotate(${rot}deg)"><path d="M8 78 Q42 -6 94 26"/></svg>`);
+    }
+    fxFloat(Y.who, `-${real}`, 'dmg');
+    if (isMax) fxEl('float max', tx, 18, '최대피해!');
+    restart($(Y.who === 'roland' ? 'actorR' : 'actorT'), 'hurt');
+    if (isMax || real >= 12) restart($('stage'), 'shake');
+  }
+
+  function fxShield(who) { fxEl('shield', pos[who], 52); }
+  function fxDodge(who) { restart($(who === 'roland' ? 'actorR' : 'actorT'), 'dodge'); }
+  function fxSpark() { fxEl('spark', (pos.roland + pos.tiger) / 2, 50); }
+
+  async function furiosoIntro() {
+    $('stage').classList.add('furioso');
+    const t = $('furiosoTitle');
+    t.hidden = false;
+    restart(t, 'show');
+    await sleep(900);
+    t.hidden = true;
+  }
+
+  // 원작 Furioso처럼 흑백 화면에 롤랑 잔상이 무기를 바꿔 들며 사방에서 베고 지나간다
+  function furiosoHit(die, tx) {
+    const ghost = fxEl('afterimage', tx + (Math.random() * 30 - 15), 52, A.roland(die.w));
+    ghost.style.setProperty('--r', `${Math.round(Math.random() * 40 - 20)}deg`);
+    ghost.style.setProperty('--s', (0.9 + Math.random() * 0.5).toFixed(2));
+    if (Math.random() < 0.5) ghost.classList.add('flip');
+    for (let k = 0; k < 3; k++) {
+      const s = fxEl('streak', tx + (Math.random() * 20 - 10), 30 + Math.random() * 40);
+      s.style.setProperty('--r', `${Math.round(Math.random() * 180)}deg`);
+    }
+    for (let k = 0; k < 4; k++) fxEl('star', tx + (Math.random() * 40 - 20), 20 + Math.random() * 60);
+  }
+
+  function actCard(n) {
+    const el = $('actCard');
+    el.querySelector('.acBig').textContent = `제 ${n}막`;
+    el.querySelector('.acSub').textContent = `${D.PHASES[n - 1].rank} 짬타이거`;
+    el.hidden = false;
+    restart(el, 'show');
+    clearTimeout(actCard.t);
+    actCard.t = setTimeout(() => { el.hidden = true; }, 1700);
+  }
 
   function say(who, text) {
     const el = $(who + 'Line');
     el.textContent = text;
-    el.classList.remove('fresh');
-    void el.offsetWidth;
-    el.classList.add('fresh');
-  }
-
-  function pop(who, text, cls) {
-    const wrap = $(who + 'Pop');
-    const el = document.createElement('span');
-    el.className = 'popItem ' + cls;
-    el.textContent = text;
-    wrap.appendChild(el);
-    setTimeout(() => el.remove(), 1100);
-    const panel = $(who + 'Panel');
-    if (cls === 'dmg' || cls === 'brk') {
-      panel.classList.remove('shake');
-      void panel.offsetWidth;
-      panel.classList.add('shake');
-    }
+    restart(el, 'fresh');
   }
 
   function addLog(text) {
@@ -490,19 +735,9 @@
     while (log.children.length > 80) log.lastChild.remove();
   }
 
-  function banner(text) {
-    const el = $('banner');
-    el.textContent = text;
-    el.hidden = false;
-    el.classList.remove('show');
-    void el.offsetWidth;
-    el.classList.add('show');
-    setTimeout(() => { el.hidden = true; }, 1600);
-  }
-
   function readoutHelp() {
     const R = S.roland;
-    let msg = '아래 주사위를 고르고 손패에서 카드를 눌러 배치하세요. 같은 줄의 짬타이거 카드와 합을 겨룹니다.';
+    let msg = '롤랑 머리 위 속도 주사위를 고르고 손패에서 책장을 누르세요. 짬타이거 주사위를 누르면 대상을 바꿉니다.';
     if (R.skip) msg = '롤랑이 흐트러져 이번 장면은 행동할 수 없습니다. 합 진행을 눌러 넘기세요.';
     $('readout').innerHTML = `<p class="roHelp">${msg}</p>`;
   }
@@ -512,7 +747,7 @@
   }
 
   const dieTag = (die, v) => die
-    ? `<span class="roDie"><i class="d ${die.t}">${D.DICE[die.t].label}</i><b>${v}</b></span>`
+    ? `<span class="roDie">${A.dieIcon(die)}<b>${v}</b></span>`
     : '<span class="roDie none">—</span>';
 
   function showReadout(da, va, db, vb, result) {
@@ -521,34 +756,43 @@
       `<p class="roRes">${result}</p>`;
   }
 
-  function diceList(def, opts = {}) {
-    return `<ul class="dice">${def.dice.map((x) => {
-      const off = opts.duck && x.t === 'evade' ? ' off' : '';
-      return `<li class="d ${x.t}${off}"><span>${D.DICE[x.t].short}</span><b>${x.min}–${x.max}</b></li>`;
-    }).join('')}</ul>`;
-  }
-
-  function cardHTML(def, opts = {}) {
-    const cost = def.cost != null ? `<span class="cost" title="빛 비용">${def.cost}</span>` : '';
-    const text = def.text ? `<p class="cText">${def.text}</p>` : '';
-    return `<div class="cHead"><span class="cName">${def.name}</span>${cost}</div>${def.dice.length ? diceList(def, opts) : ''}${text}`;
-  }
-
-  function setBar(id, v, max) {
-    $(id).style.setProperty('--pct', `${Math.max(0, (v / max) * 100)}%`);
-    $(id + 'Num').textContent = `${v}/${max}`;
-  }
+  // ---------- 화면 갱신 ----------
 
   function render() {
+    renderHUD();
+    renderDice();
+    renderPanel();
+    renderHand();
+    renderTracker();
+    const go = $('goBtn');
+    go.disabled = S.busy || !!S.over;
+    go.textContent = S.busy ? '합 진행 중…' : '합 진행';
+  }
+
+  function renderHUD() {
     const R = S.roland, T = S.tiger, ph = D.PHASES[S.phase];
     $('sceneNo').textContent = `장면 ${S.scene}`;
     $('tigerRank').textContent = ph.rank;
-    $('phaseDots').innerHTML = D.PHASES.map((p, i) =>
-      `<li class="${i < S.phase ? 'done' : i === S.phase ? 'now' : ''}">${p.rank}</li>`).join('');
-    setBar('tigerHp', T.hp, T.maxHp);
-    setBar('tigerSt', T.st, T.maxSt);
-    setBar('rolandHp', R.hp, R.maxHp);
-    setBar('rolandSt', R.st, R.maxSt);
+    const ring = (id, u) => {
+      $(id).style.setProperty('--hp', `${(u.hp / u.maxHp) * 100}%`);
+      $(id).style.setProperty('--st', `${(u.st / u.maxSt) * 100}%`);
+    };
+    ring('rRing', R);
+    ring('tRing', T);
+    $('rHp').textContent = R.hp;
+    $('rSt').textContent = R.st;
+    $('tHp').textContent = T.hp;
+    $('tSt').textContent = T.st;
+    $('actorR').classList.toggle('broken', R.broken);
+    $('actorT').classList.toggle('broken', T.broken);
+    for (const [k, u] of [['R', R], ['T', T]]) {
+      $('feet' + k).innerHTML =
+        `<span class="fHp">${u.hp}</span><span class="fSt">${u.st}</span>`;
+    }
+
+    const avail = availableLight();
+    $('lightPips').innerHTML = Array.from({ length: R.maxLight }, (_, i) =>
+      `<i class="${i < avail ? 'on' : i < R.light ? 'res' : ''}"></i>`).join('');
 
     const tChips = [];
     if (T.maxAmmo) {
@@ -557,81 +801,139 @@
     }
     if (T.broken) tChips.push('<span class="chip bad">흐트러짐 · 받는 피해 2배</span>');
     $('tigerExtra').innerHTML = tChips.join('');
-
-    const avail = availableLight();
-    $('lightPips').innerHTML = Array.from({ length: R.maxLight }, (_, i) =>
-      `<i class="${i < avail ? 'on' : i < R.light ? 'res' : ''}"></i>`).join('');
-    $('lightNum').textContent = `${avail}/${R.maxLight}`;
     const rChips = [];
     if (R.broken) rChips.push('<span class="chip bad">흐트러짐 · 받는 피해 2배</span>');
     for (const k of Object.keys(R.status)) rChips.push(`<span class="chip bad">${D.STATUS[k].name} · ${D.STATUS[k].desc}</span>`);
     for (const k of Object.keys(R.pending)) rChips.push(`<span class="chip warn">다음 장면 · ${D.STATUS[k].name}</span>`);
     $('rolandExtra').innerHTML = rChips.join('');
-
-    renderLane();
-    renderHand();
-    renderTracker();
-
-    const go = $('goBtn');
-    go.disabled = S.busy || !!S.over;
-    go.textContent = S.busy ? '합 진행 중…' : '합 진행';
+    $('phaseDots').innerHTML = D.PHASES.map((p, i) =>
+      `<li class="${i < S.phase ? 'done' : i === S.phase ? 'now' : ''}">${p.rank}</li>`).join('');
   }
 
-  function renderLane() {
-    const T = S.tiger;
-    const n = Math.max(S.slots.length, S.intents.length, 1);
-    const lane = $('lane');
-    lane.style.setProperty('--cols', n);
-    let html = '';
-    for (let i = 0; i < n; i++) {
-      const tc = S.intents[i];
-      const rc = S.slots[i];
-      const hasSlot = i < S.slots.length;
-      const top = tc
-        ? `<div class="card enemy${tc.broken ? ' spent' : ''}">${cardHTML(tc.def)}</div>`
-        : `<div class="empty">${T.skip ? '흐트러져 행동 불가' : '행동 없음'}</div>`;
-      let mid = '';
-      if (tc && rc) mid = '합';
-      else if (tc && hasSlot) mid = '빈 주사위면 일방 공격 받음';
-      else if (tc) mid = '일방 공격 받음';
-      else if (rc) mid = '일방 공격';
-      let bottom;
-      if (!hasSlot) {
-        bottom = `<div class="empty">${S.roland.skip ? '흐트러져 행동 불가' : '주사위 없음'}</div>`;
-      } else if (rc) {
-        bottom = `<button type="button" class="card slot filled${S.selected === i ? ' sel' : ''}" data-slot="${i}" id="slot${i}" aria-label="${rCard(rc).name} 빼기">${cardHTML(rCard(rc), { duck: S.roland.status.duckwalk })}</button>`;
-      } else {
-        bottom = `<button type="button" class="card slot${S.selected === i ? ' sel' : ''}" data-slot="${i}" id="slot${i}"><span class="slotHint">속도 주사위 ${i + 1}<br>카드 배치</span></button>`;
-      }
-      html += `<div class="col${S.active === i ? ' active' : ''}">${top}<div class="vs">${mid}</div>${bottom}</div>`;
+  function renderDice() {
+    const acting = S.acting;
+    $('rDiceRow').innerHTML = S.rDice.map((d, i) => {
+      const plate = d.card
+        ? `<span class="plate rar-${rCard(d.card).rarity}">${A.glyph(rCard(d.card).weapon)}</span>`
+        : '<span class="plate empty"></span>';
+      const cls = ['sdie', 'r', d.card ? 'filled' : '', S.sel === i ? 'sel' : '',
+        acting && acting.r === i && acting.type !== 'oneT' ? 'acting' : ''].join(' ');
+      return `<button type="button" class="${cls}" data-r="${i}" id="rd${i}" aria-label="속도 ${d.speed} 주사위${d.card ? ', ' + rCard(d.card).name : ''}">${plate}<span class="face">${d.speed}</span></button>`;
+    }).join('');
+    $('tDiceRow').innerHTML = S.tDice.map((d, t) => {
+      const cls = ['sdie', 't', S.peek === t ? 'sel' : '',
+        acting && acting.t === t && acting.type !== 'oneR' ? 'acting' : ''].join(' ');
+      return `<button type="button" class="${cls}" data-t="${t}" id="td${t}" aria-label="속도 ${d.speed} 주사위, ${d.card.def.name}"><span class="plate rar-enemy">${A.glyph(d.card.def.prop)}</span><span class="face">${d.speed}</span></button>`;
+    }).join('');
+    requestAnimationFrame(renderArrows);
+  }
+
+  function renderArrows() {
+    const svg = $('arrows');
+    const stage = $('stageInner').getBoundingClientRect();
+    svg.setAttribute('viewBox', `0 0 ${stage.width} ${stage.height}`);
+    if (S.busy || !stage.width) { svg.innerHTML = ''; return; }
+    const pt = (el) => {
+      const r = el.getBoundingClientRect();
+      return { x: r.left + r.width / 2 - stage.left, y: r.top - stage.top + 2 };
+    };
+    const body = (id) => {
+      const r = $(id).getBoundingClientRect();
+      return { x: r.left + r.width / 2 - stage.left, y: r.top + r.height * 0.45 - stage.top };
+    };
+    const arc = (a, b, cls, both) => {
+      const lift = Math.min(90, 26 + Math.abs(b.x - a.x) * 0.28);
+      const mx = (a.x + b.x) / 2, my = Math.min(a.y, b.y) - lift;
+      return `<path class="arw ${cls}" d="M${a.x} ${a.y} Q${mx} ${my} ${b.x} ${b.y}" marker-end="url(#mk-${cls})"${both ? ` marker-start="url(#mk-${cls})"` : ''}/>`;
+    };
+    let out = '';
+    for (const act of computeActions()) {
+      const rEl = act.r != null ? $('rd' + act.r) : null;
+      const tEl = act.t != null ? $('td' + act.t) : null;
+      if (act.type === 'clash') out += arc(pt(rEl), pt(tEl), 'clash', true);
+      else if (act.type === 'oneR') out += arc(pt(rEl), tEl ? pt(tEl) : body('actorT'), 'mine');
+      else out += arc(pt(tEl), rEl ? pt(rEl) : body('actorR'), 'foe');
     }
-    lane.innerHTML = html;
+    const mk = (id) => `<marker id="mk-${id}" class="mk ${id}" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z"/></marker>`;
+    svg.innerHTML = `<defs>${mk('clash')}${mk('mine')}${mk('foe')}</defs>${out}`;
+  }
+
+  function cardFull(def, label) {
+    const cost = def.cost != null ? `<span class="cost">${def.cost}</span>` : '';
+    const dice = def.dice.length
+      ? `<ul class="cfDice">${def.dice.map((x) => {
+        const off = S.roland.status.duckwalk && def.cost != null && x.t === 'evade' ? ' off' : '';
+        return `<li class="${off}">${A.dieIcon(x)}<span>${D.DICE[x.t].label}${x.counter ? ' (반격)' : ''}</span><b>${x.min}–${x.max}</b></li>`;
+      }).join('')}</ul>`
+      : '<p class="cfText">주사위 없음</p>';
+    return `<div class="cardFull rar-${def.rarity || 'enemy'}">
+      <span class="cfLabel">${label}</span>
+      <div class="cfTop"><div class="cfArt">${A.glyph(def.weapon || def.prop)}</div><div class="cfHead">${cost}<b>${def.name}</b></div></div>
+      ${dice}${def.text ? `<p class="cfText">${def.text}</p>` : ''}
+    </div>`;
+  }
+
+  function renderPanel() {
+    const panel = $('panel');
+    if (S.busy || S.over) { panel.classList.add('dim'); return; }
+    panel.classList.remove('dim');
+    const rd = S.rDice[S.sel];
+    let rHtml, tHtml, verdict = '';
+    let t = -1;
+    if (rd && rd.card) t = rd.target != null ? rd.target : -1;
+    else if (S.peek >= 0) t = S.peek;
+    else if (rd) t = S.tDice.findIndex((td) => td.target === S.sel);
+    if (S.peek >= 0) t = S.peek;
+
+    if (rd && rd.card) {
+      rHtml = cardFull(rCard(rd.card), `롤랑 · 속도 ${rd.speed}`);
+      const act = computeActions().find((a) => a.r === S.sel && a.type !== 'oneT');
+      verdict = act && act.type === 'clash' ? '합' : '일방 공격';
+    } else if (rd) {
+      rHtml = `<div class="cardFull hint"><span class="cfLabel">롤랑 · 속도 ${rd.speed}</span><p>손패에서 책장을 눌러 이 주사위에 놓으세요.</p></div>`;
+    } else {
+      rHtml = `<div class="cardFull hint"><span class="cfLabel">롤랑</span><p>${S.roland.skip ? '흐트러져 행동할 수 없습니다.' : '속도 주사위를 고르세요.'}</p></div>`;
+    }
+    const td = S.tDice[t];
+    if (td) {
+      tHtml = cardFull(td.card.def, `짬타이거 · 속도 ${td.speed}`);
+      if (!verdict) verdict = td.target === S.sel ? '이 주사위를 노림' : '';
+    } else {
+      tHtml = `<div class="cardFull hint"><span class="cfLabel">짬타이거</span><p>${S.tiger.skip ? '흐트러져 행동할 수 없습니다.' : '짬타이거 주사위를 누르면 책장을 볼 수 있어요.'}</p></div>`;
+    }
+    panel.innerHTML = `${rHtml}<div class="verdict">${verdict ? `<span>${verdict}</span>` : ''}</div>${tHtml}`;
   }
 
   function renderHand() {
     const avail = availableLight();
-    const canPlace = !S.busy && !S.over && S.slots.length > 0;
+    const canPlace = !S.busy && !S.over && S.rDice.length > 0;
     $('hand').innerHTML = S.hand.map((c) => {
       const def = rCard(c);
       const ok = canPlace && def.cost <= avail;
-      const tag = def.workshop ? `<span class="wsTag${S.used.has(c.id) ? ' done' : ''}">공방</span>` : '';
-      const cls = def.special === 'furioso' ? ' furioso' : '';
-      return `<button type="button" class="card hcard${cls}" data-uid="${c.uid}" id="hand${c.uid}" ${ok ? '' : 'aria-disabled="true"'}>${tag}${cardHTML(def, { duck: S.roland.status.duckwalk })}</button>`;
+      return `<button type="button" class="hcard rar-${def.rarity}" data-uid="${c.uid}" id="hand${c.uid}" ${ok ? '' : 'aria-disabled="true"'}>
+        <span class="hcTop"><span class="cost">${def.cost}</span><span class="hcName">${def.name}</span></span>
+        <span class="hcArt">${A.glyph(def.weapon)}</span>
+        <span class="hcDice">${def.dice.map((x) => A.dieIcon(x)).join('')}</span>
+      </button>`;
     }).join('') || '<p class="emptyHand">손패가 비었습니다.</p>';
     $('deckInfo').textContent = `덱 ${S.deck.length} · 버림 ${S.discard.length}`;
   }
 
   function renderTracker() {
-    $('tracker').innerHTML = D.WORKSHOPS.map((id) =>
-      `<li class="${S.used.has(id) ? 'done' : ''}">${D.ROLAND_CARDS[id].name}</li>`).join('');
-    $('trackerNum').textContent = `${S.used.size}/${D.WORKSHOPS.length}`;
+    $('tracker').innerHTML = WORKSHOPS.map((id) => {
+      const def = D.ROLAND_CARDS[id];
+      return `<li class="${S.used.has(id) ? 'done' : ''}" title="${def.name}">${A.glyph(def.weapon)}<span>${def.name}</span></li>`;
+    }).join('');
+    $('trackerNum').textContent = `${S.used.size}/${WORKSHOPS.length}`;
   }
 
   // ---------- 입력 ----------
 
-  $('lane').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-slot]');
-    if (b) onSlotTap(Number(b.dataset.slot));
+  $('stage').addEventListener('click', (e) => {
+    const r = e.target.closest('[data-r]');
+    if (r) return onRDieTap(Number(r.dataset.r));
+    const t = e.target.closest('[data-t]');
+    if (t) onTDieTap(Number(t.dataset.t));
   });
   $('hand').addEventListener('click', (e) => {
     const b = e.target.closest('[data-uid]');
@@ -643,6 +945,9 @@
     fast = !fast;
     $('fastBtn').setAttribute('aria-pressed', String(fast));
   });
+  window.addEventListener('resize', () => requestAnimationFrame(renderArrows));
 
+  $('rFace').innerHTML = A.faceRoland;
+  $('tFace').innerHTML = A.faceTiger;
   newGame();
 })();
