@@ -173,48 +173,62 @@ button:focus-visible, summary:focus-visible { outline: 2px solid var(--gold); ou
   background: radial-gradient(120% 100% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.7));
 }
 
+/* 합 배너: 원작처럼 붓 자국 띠에 책장 이름, 그 아래 큰 일러스트 */
 .cbanner {
   position: absolute;
-  top: 5%;
-  width: 41%;
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  padding: 6px;
-  background: linear-gradient(180deg, rgba(20, 16, 12, 0.92), rgba(10, 8, 6, 0.92));
-  border: 1px solid var(--ember-dim);
-  border-top: 3px solid var(--rar, #888);
-  border-radius: 3px;
+  top: 3%;
+  width: 34%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   z-index: 6;
+  pointer-events: none;
   animation: bannerIn 0.25s ease;
 }
-.cbanner.roland { left: 3%; }
-.cbanner.tiger { right: 3%; grid-template-columns: auto minmax(0, 1fr) 44px; text-align: right; }
-.cbanner.tiger .cbArt { order: 3; }
-.cbanner.tiger .emblem { order: 1; }
-.cbanner.tiger .cbBody { order: 2; }
-.cbanner.tiger .cbQueue { justify-content: flex-end; }
+.cbanner.roland { left: 3%; align-items: flex-start; }
+.cbanner.tiger { right: 3%; align-items: flex-end; }
 @keyframes bannerIn { from { opacity: 0; transform: translateY(-8px); } }
-.cbArt {
-  width: 44px; height: 44px;
-  display: grid; place-items: center;
-  background: linear-gradient(150deg, #4a4a4a, #0f0f0f);
-  color: #f0f0f0;
-  border-radius: 2px;
+.cbHead { display: flex; align-items: center; gap: 8px; width: 100%; }
+.cbanner.tiger .cbHead { flex-direction: row-reverse; }
+.cbName {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 22px;
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: clamp(11px, 1.7vw, 18px);
+  color: #f3eadb;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: linear-gradient(90deg, rgba(10,8,7,.96), rgba(22,17,14,.92));
+  -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20400%2060%22%20preserveAspectRatio%3D%22none%22%3E%3Cpath%20d%3D%22M5.4%2030.0%20L18.0%202.3%20L28.0%203.8%20L20.0%200.6%20L30.0%208.8%20L40.0%207.3%20L50.0%205.2%20L60.0%201.7%20L70.0%202.1%20L80.0%208.0%20L90.0%207.7%20L100.0%203.0%20L110.0%207.0%20L120.0%208.4%20L130.0%205.8%20L140.0%204.9%20L150.0%204.5%20L160.0%209.0%20L170.0%205.3%20L180.0%208.7%20L190.0%208.5%20L200.0%204.9%20L210.0%205.7%20L220.0%201.5%20L230.0%207.8%20L240.0%200.4%20L250.0%202.7%20L260.0%204.5%20L270.0%209.6%20L280.0%204.0%20L290.0%206.1%20L300.0%203.4%20L310.0%203.1%20L320.0%208.7%20L330.0%200.6%20L340.0%207.3%20L350.0%202.3%20L360.0%201.7%20L370.0%200.4%20L380.0%208.6%20L390.0%207.1%20L400.0%200.2%20L400.0%2027.0%20L400.0%2057.2%20L390.0%2050.8%20L380.0%2050.8%20L370.0%2053.3%20L360.0%2055.6%20L350.0%2056.8%20L340.0%2054.1%20L330.0%2057.8%20L320.0%2059.0%20L310.0%2054.6%20L300.0%2052.8%20L290.0%2057.3%20L280.0%2058.1%20L270.0%2058.1%20L260.0%2056.7%20L250.0%2054.9%20L240.0%2054.0%20L230.0%2059.6%20L220.0%2057.1%20L210.0%2055.9%20L200.0%2056.0%20L190.0%2051.9%20L180.0%2054.5%20L170.0%2057.1%20L160.0%2051.7%20L150.0%2059.1%20L140.0%2058.3%20L130.0%2053.6%20L120.0%2059.2%20L110.0%2051.8%20L100.0%2054.0%20L90.0%2058.1%20L80.0%2052.3%20L70.0%2051.1%20L60.0%2059.0%20L50.0%2057.3%20L40.0%2057.9%20L30.0%2052.3%20L20.0%2056.1%20L10.0%2058.5%20L0.0%2059.0%20Z%22%20fill%3D%22%23000%22/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20400%2060%22%20preserveAspectRatio%3D%22none%22%3E%3Cpath%20d%3D%22M5.4%2030.0%20L18.0%202.3%20L28.0%203.8%20L20.0%200.6%20L30.0%208.8%20L40.0%207.3%20L50.0%205.2%20L60.0%201.7%20L70.0%202.1%20L80.0%208.0%20L90.0%207.7%20L100.0%203.0%20L110.0%207.0%20L120.0%208.4%20L130.0%205.8%20L140.0%204.9%20L150.0%204.5%20L160.0%209.0%20L170.0%205.3%20L180.0%208.7%20L190.0%208.5%20L200.0%204.9%20L210.0%205.7%20L220.0%201.5%20L230.0%207.8%20L240.0%200.4%20L250.0%202.7%20L260.0%204.5%20L270.0%209.6%20L280.0%204.0%20L290.0%206.1%20L300.0%203.4%20L310.0%203.1%20L320.0%208.7%20L330.0%200.6%20L340.0%207.3%20L350.0%202.3%20L360.0%201.7%20L370.0%200.4%20L380.0%208.6%20L390.0%207.1%20L400.0%200.2%20L400.0%2027.0%20L400.0%2057.2%20L390.0%2050.8%20L380.0%2050.8%20L370.0%2053.3%20L360.0%2055.6%20L350.0%2056.8%20L340.0%2054.1%20L330.0%2057.8%20L320.0%2059.0%20L310.0%2054.6%20L300.0%2052.8%20L290.0%2057.3%20L280.0%2058.1%20L270.0%2058.1%20L260.0%2056.7%20L250.0%2054.9%20L240.0%2054.0%20L230.0%2059.6%20L220.0%2057.1%20L210.0%2055.9%20L200.0%2056.0%20L190.0%2051.9%20L180.0%2054.5%20L170.0%2057.1%20L160.0%2051.7%20L150.0%2059.1%20L140.0%2058.3%20L130.0%2053.6%20L120.0%2059.2%20L110.0%2051.8%20L100.0%2054.0%20L90.0%2058.1%20L80.0%2052.3%20L70.0%2051.1%20L60.0%2059.0%20L50.0%2057.3%20L40.0%2057.9%20L30.0%2052.3%20L20.0%2056.1%20L10.0%2058.5%20L0.0%2059.0%20Z%22%20fill%3D%22%23000%22/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  filter: drop-shadow(0 0 6px var(--rar, #888));
 }
-.cbArt .glyph { width: 34px; height: 34px; }
+.cbanner.tiger .cbName { text-align: right; }
+.cbBody { display: flex; align-items: flex-start; gap: 8px; width: 100%; }
+.cbanner.tiger .cbBody { flex-direction: row-reverse; }
+.cbArt {
+  width: 62%;
+  aspect-ratio: 4 / 3;
+  background: #111;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20400%20300%22%20preserveAspectRatio%3D%22none%22%3E%3Cpath%20d%3D%22M1.8%20150.0%20L6.0%2046.4%20L16.0%2019.7%20L20.0%2029.8%20L30.0%2014.1%20L40.0%2021.3%20L50.0%2018.3%20L60.0%2015.9%20L70.0%202.2%20L80.0%2037.6%20L90.0%2013.9%20L100.0%2047.1%20L110.0%2010.0%20L120.0%202.7%20L130.0%2032.5%20L140.0%202.0%20L150.0%2012.0%20L160.0%205.9%20L170.0%2037.1%20L180.0%2047.4%20L190.0%2011.6%20L200.0%201.8%20L210.0%2011.9%20L220.0%2039.9%20L230.0%201.5%20L240.0%2011.6%20L250.0%2011.1%20L260.0%206.8%20L270.0%2044.5%20L280.0%2047.5%20L290.0%2043.2%20L300.0%2038.0%20L310.0%2023.7%20L320.0%2010.1%20L330.0%2043.2%20L340.0%2016.2%20L350.0%2038.4%20L360.0%2039.1%20L370.0%2031.4%20L380.0%2012.9%20L390.0%2045.9%20L400.0%2046.6%20L400.0%20135.0%20L400.0%20253.8%20L390.0%20296.4%20L380.0%20255.7%20L370.0%20267.1%20L360.0%20274.7%20L350.0%20269.2%20L340.0%20268.5%20L330.0%20255.6%20L320.0%20258.1%20L310.0%20295.5%20L300.0%20264.3%20L290.0%20268.6%20L280.0%20280.7%20L270.0%20272.9%20L260.0%20297.5%20L250.0%20258.3%20L240.0%20290.0%20L230.0%20287.8%20L220.0%20276.1%20L210.0%20257.3%20L200.0%20279.8%20L190.0%20280.3%20L180.0%20277.1%20L170.0%20280.4%20L160.0%20274.6%20L150.0%20252.1%20L140.0%20276.4%20L130.0%20292.8%20L120.0%20291.9%20L110.0%20297.2%20L100.0%20279.7%20L90.0%20295.3%20L80.0%20282.6%20L70.0%20291.9%20L60.0%20299.5%20L50.0%20253.8%20L40.0%20293.5%20L30.0%20290.8%20L20.0%20260.7%20L10.0%20254.7%20L0.0%20262.8%20Z%22%20fill%3D%22%23000%22/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20400%20300%22%20preserveAspectRatio%3D%22none%22%3E%3Cpath%20d%3D%22M1.8%20150.0%20L6.0%2046.4%20L16.0%2019.7%20L20.0%2029.8%20L30.0%2014.1%20L40.0%2021.3%20L50.0%2018.3%20L60.0%2015.9%20L70.0%202.2%20L80.0%2037.6%20L90.0%2013.9%20L100.0%2047.1%20L110.0%2010.0%20L120.0%202.7%20L130.0%2032.5%20L140.0%202.0%20L150.0%2012.0%20L160.0%205.9%20L170.0%2037.1%20L180.0%2047.4%20L190.0%2011.6%20L200.0%201.8%20L210.0%2011.9%20L220.0%2039.9%20L230.0%201.5%20L240.0%2011.6%20L250.0%2011.1%20L260.0%206.8%20L270.0%2044.5%20L280.0%2047.5%20L290.0%2043.2%20L300.0%2038.0%20L310.0%2023.7%20L320.0%2010.1%20L330.0%2043.2%20L340.0%2016.2%20L350.0%2038.4%20L360.0%2039.1%20L370.0%2031.4%20L380.0%2012.9%20L390.0%2045.9%20L400.0%2046.6%20L400.0%20135.0%20L400.0%20253.8%20L390.0%20296.4%20L380.0%20255.7%20L370.0%20267.1%20L360.0%20274.7%20L350.0%20269.2%20L340.0%20268.5%20L330.0%20255.6%20L320.0%20258.1%20L310.0%20295.5%20L300.0%20264.3%20L290.0%20268.6%20L280.0%20280.7%20L270.0%20272.9%20L260.0%20297.5%20L250.0%20258.3%20L240.0%20290.0%20L230.0%20287.8%20L220.0%20276.1%20L210.0%20257.3%20L200.0%20279.8%20L190.0%20280.3%20L180.0%20277.1%20L170.0%20280.4%20L160.0%20274.6%20L150.0%20252.1%20L140.0%20276.4%20L130.0%20292.8%20L120.0%20291.9%20L110.0%20297.2%20L100.0%20279.7%20L90.0%20295.3%20L80.0%20282.6%20L70.0%20291.9%20L60.0%20299.5%20L50.0%20253.8%20L40.0%20293.5%20L30.0%20290.8%20L20.0%20260.7%20L10.0%20254.7%20L0.0%20262.8%20Z%22%20fill%3D%22%23000%22/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  box-shadow: 0 0 0 4px #0b0908;
+}
+.cbArt .art { width: 100%; height: 100%; object-fit: cover; }
+.cbArt .glyph { width: 60%; height: 60%; margin: 20%; color: #eee; }
+.cbSide { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.cbQueue { display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; max-width: 80px; }
+.cbQueue .di.spent { opacity: 0.2; }
 .art { display: block; width: 100%; height: 100%; object-fit: cover; }
 .art.tiger { object-fit: cover; object-position: 50% 18%; background: linear-gradient(160deg, #6b6a63, #2a2926); }
 .faceImg { display: block; width: 100%; height: 100%; background-repeat: no-repeat; }
 .faceImg.roland { background-image: url(assets/ruina/poses/idle.png); background-size: 220% auto; background-position: 62% 2%; transform: scaleX(-1); }
 .faceImg.tiger { background-size: 210% auto; background-position: 18% 10%; }
-.cbBody { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.cbName { font-size: 13px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cbQueue { display: flex; gap: 2px; flex-wrap: wrap; }
-.cbQueue .di.spent { opacity: 0.2; }
 .emblem {
-  width: 46px; height: 46px;
+  width: 54px; height: 54px;
   display: grid; place-items: center;
   position: relative;
   clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
@@ -518,10 +532,8 @@ h2 { margin: 0; font-family: var(--f-display); font-size: 16px; font-weight: 800
   .hud { padding: 6px 8px; gap: 4px; }
   .hudUnit { gap: 6px; }
   .phaseDots { display: none; }
-  .cbanner { width: 46%; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 5px; padding: 4px; }
-  .cbanner.tiger { grid-template-columns: auto minmax(0, 1fr) 34px; }
-  .cbArt { width: 34px; height: 34px; }
-  .cbArt .glyph { width: 26px; height: 26px; }
+  .cbanner { width: 40%; gap: 3px; }
+  .cbName { padding: 4px 12px; }
   .emblem { width: 38px; height: 38px; }
   .emVal { font-size: 17px; }
   .cbName { font-size: 11px; }

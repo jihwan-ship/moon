@@ -41,8 +41,9 @@ window.JJAM_DATA = (() => {
     ranga: { name: '랑아 공방', rarity: 'paperback', cost: 0, weapon: 'dagger', pose: { pierce: 'ranga_claw', slash: 'ranga_claw' }, dice: [d('pierce', 2, 4), d('pierce', 2, 4), d('slash', 2, 5)] },
     oldboys: {
       name: '늙은소년 공방', rarity: 'paperback', cost: 1, weapon: 'hammer', pose: { blunt: 'slash' },
-      dice: [d('block', 4, 8, { onWin: 'light' }), d('blunt', 4, 8)],
-      text: '방어 주사위가 합에서 이기면 빛 1 회복',
+      onUse: { light: 3, draw: 1 },
+      dice: [d('block', 5, 9), d('blunt', 4, 8, { onHitSt: 5 })],
+      text: '사용 시 빛 3 회복, 책장 1장 뽑기. 타격 적중 시 흐트러짐 5 회복',
     },
     allas: { name: '알라스 공방', rarity: 'hardcover', cost: 2, weapon: 'spear', pose: { pierce: 'thrust' }, dice: [d('pierce', 4, 8), d('pierce', 5, 9)] },
     mook: { name: '묵 공방', rarity: 'hardcover', cost: 2, weapon: 'katana', pose: { slash: 'mook_slash' }, dice: [d('slash', 6, 12)] },
@@ -55,13 +56,10 @@ window.JJAM_DATA = (() => {
     },
     wheels: { name: '휠즈 인더스트리', rarity: 'limited', cost: 4, weapon: 'greatsword', pose: { blunt: 'wheels_smash' }, dice: [d('blunt', 10, 18), d('block', 5, 9)] },
     furioso: {
-      name: 'Furioso', rarity: 'art', cost: 0, special: 'furioso', weapon: 'sword', pose: {},
-      dice: [
-        d('blunt', 4, 8, { w: 'mace' }), d('pierce', 3, 6, { w: 'dagger' }), d('blunt', 4, 8, { w: 'hammer' }),
-        d('pierce', 5, 9, { w: 'spear' }), d('slash', 5, 9, { w: 'katana' }), d('pierce', 4, 8, { w: 'gun' }),
-        d('slash', 5, 9, { w: 'dual' }), d('blunt', 7, 12, { w: 'greatsword' }), d('slash', 6, 10, { w: 'sword' }),
-      ],
-      text: '아홉 공방 책장을 모두 쓰면 손에 들어온다. 쓰고 나면 기록이 초기화된다',
+      name: 'Furioso', rarity: 'art', cost: 3, special: 'furioso', weapon: 'sword', pose: {},
+      dice: [d('slash', 20, 39, { furioso: true })],
+      inflict: { bleed: 5, bind: 3, fragile: 3 },
+      text: '아홉 공방 책장을 모두 쓰면 손에 들어온다. 합 승리 시 대상의 모든 주사위 파괴. 적중 시 다음 막에 출혈 5, 속박 3, 취약 3',
     },
   };
 
@@ -102,6 +100,9 @@ window.JJAM_DATA = (() => {
   const STATUS = {
     pushup: { name: '엎드려뻗쳐', desc: '속도 주사위 -1' },
     duckwalk: { name: '오리걸음', desc: '회피 주사위 사용 불가' },
+    bleed: { name: '출혈', desc: '공격 주사위를 굴릴 때마다 피해, 이후 2/3로 감소' },
+    bind: { name: '속박', desc: '속도 감소' },
+    fragile: { name: '취약', desc: '적중당할 때마다 받는 피해 증가' },
   };
 
   // 짬타이거 계급(막). 쓰러뜨리면 다음 계급으로 진급한다.

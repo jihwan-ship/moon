@@ -198,10 +198,14 @@ window.JJAM_STAGE = (() => {
     const shadow = scene.add.ellipse(x, GROUND + 4, 170, 26, 0x000000, 0.45);
     const spr = scene.add.image(x, GROUND, 'bg').setScale(SCALE);
     if (who === 'roland') spr.setFlipX(true);
-    const feet = scene.add.text(x, GROUND + 22, '', {
-      fontFamily: 'JetBrains Mono, monospace', fontSize: '20px', fontStyle: '700', color: '#ffffff', stroke: '#000', strokeThickness: 4,
-    }).setOrigin(0.5, 0);
-    return { who, spr, shadow, feet, x, pose: 'idle', broken: false };
+    // 발밑 링: 왼쪽 빨강 = 체력, 오른쪽 노랑 = 흐트러짐 저항
+    const feet = scene.add.container(x, GROUND + 8);
+    const ring = scene.add.graphics();
+    const txt = { fontFamily: 'JetBrains Mono, monospace', fontSize: '22px', fontStyle: '700', stroke: '#000', strokeThickness: 5 };
+    const hpT = scene.add.text(-74, 18, '', { ...txt, color: '#ff5a4a' }).setOrigin(0.5, 0);
+    const stT = scene.add.text(74, 18, '', { ...txt, color: '#f0cf4a' }).setOrigin(0.5, 0);
+    feet.add([ring, hpT, stT]);
+    return { who, spr, shadow, feet, ring, hpT, stT, x, pose: 'idle', broken: false };
   }
 
   function moveActor(who, x, ms = 380) {
@@ -429,8 +433,34 @@ window.JJAM_STAGE = (() => {
       if (scene) scene.tweens.timeScale = 1;
     },
     renderDice,
-    setFeet(who, hp, stg) {
-      if (st[who]) st[who].feet.setText(`${hp}  ${stg}`).setColor('#ffffff');
+    setFeet(who, hp, stg, maxHp, maxSt) {
+      const a = st[who];
+      if (!a) return;
+      a.hpT.setText(String(hp));
+      a.stT.setText(String(stg));
+      const g = a.ring;
+      const R0 = 92, SY = 0.3;
+      const arc = (from, to, anti, color, width) => {
+        g.lineStyle(width, color, 1);
+        g.beginPath();
+        const n = 28;
+        for (let i = 0; i <= n; i++) {
+          const t = from + ((to - from) * i) / n;
+          const px = Math.cos(t) * R0, py = Math.sin(t) * R0 * SY;
+          if (i === 0) g.moveTo(px, py); else g.lineTo(px, py);
+        }
+        g.strokePath();
+      };
+      g.clear();
+      g.fillStyle(who === 'roland' ? 0xe6bd5c : 0xc04ad0, 0.12);
+      g.fillEllipse(0, 0, R0 * 2, R0 * 2 * SY);
+      arc(0, Math.PI * 2, false, 0x1a1210, 14);
+      const hpF = Math.max(0, Math.min(1, hp / (maxHp || 1)));
+      const stF = Math.max(0, Math.min(1, stg / (maxSt || 1)));
+      if (hpF > 0) arc(Math.PI / 2, Math.PI / 2 + Math.PI * hpF, false, 0xd23b35, 9);
+      if (stF > 0) arc(Math.PI / 2, Math.PI / 2 - Math.PI * stF, true, 0xe8c23a, 9);
+      g.lineStyle(2, who === 'roland' ? 0xe6bd5c : 0xc04ad0, 0.8);
+      g.strokeEllipse(0, 0, R0 * 1.25, R0 * 1.25 * SY);
     },
     setBroken(who, v) {
       const a = st[who];
@@ -479,7 +509,19 @@ window.JJAM_STAGE = (() => {
       const fxKey = attacker === 'roland' ? POSE_FX[pose] : TIGER_FX[pose];
       const flip = attacker === 'tiger';
       if (opts.furioso) {
-        api.afterimage(pose, x);
+        // 아홉 공방 무기를 차례로 바꿔 들며 베고, 마지막에 한 번에 피해가 들어간다
+        const seq = ['zelkova_axe', 'ranga_claw', 'wheels_swing', 'thrust', 'mook_thrust', 'logic_pistols', 'slash', 'crystal', 'wheels_smash'];
+        seq.forEach((p, i) => scene.time.delayedCall(dur(115 * i), () => api.afterimage(p, x)));
+        scene.time.delayedCall(dur(1080), () => {
+          flash(0xffffff, 0.6);
+          burst(x, y, 0xffffff, 2.2);
+          if (!t.broken) setPoseOf(target, 'hurt');
+          knock(target, 90);
+          float(target, `-${real}`, 'dmg');
+          if (isMax) float(target, '최대피해!', 'max');
+          scene.cameras.main.shake(dur(380), 0.016);
+        });
+        return;
       } else if (fxKey === 'muzzle') {
         const a = st[attacker];
         fxImage('muzzle', a.x + (flip ? -220 : 220), GROUND - 230, { flip: !flip, scale: 0.75 });

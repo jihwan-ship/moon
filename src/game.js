@@ -56,9 +56,11 @@
 
   function setupTiger(p) {
     const ph = D.PHASES[p];
+    const prev = S.tiger;
     S.tiger = {
       hp: ph.hp, maxHp: ph.hp, st: ph.stagger, maxSt: ph.stagger, broken: false, skip: false,
       ammo: ph.maxAmmo, maxAmmo: ph.maxAmmo,
+      status: {}, pending: prev ? prev.pending : {},
     };
   }
 
@@ -84,6 +86,9 @@
     R.status = R.pending;
     R.pending = {};
     R.counters = [];
+    T.status = T.pending;
+    T.pending = {};
+    S.destroyTiger = false;
     R.skip = R.broken;
     T.skip = T.broken;
     const extra = S.phase >= 2 ? 1 : 0;
@@ -91,7 +96,8 @@
     const nT = T.skip ? 0 : ph.dice;
     S.rDice = Array.from({ length: nR }, () => ({ speed: rand(...D.ROLAND.speed), card: null, target: null }))
       .sort((a, b) => b.speed - a.speed);
-    S.tDice = tigerChoose(nT).map((card) => ({ speed: rand(...ph.speed), card, target: nR ? rand(0, nR - 1) : -1 }))
+    const bind = T.status.bind || 0;
+    S.tDice = tigerChoose(nT).map((card) => ({ speed: Math.max(1, rand(...ph.speed) - bind), card, target: nR ? rand(0, nR - 1) : -1 }))
       .sort((a, b) => b.speed - a.speed);
     S.sel = nR ? 0 : -1;
     S.peek = -1;
@@ -105,6 +111,7 @@
       say('roland', pick(D.LINES.roland.duckwalk));
       addLog('오리걸음 여파로 이번 장면에는 회피 주사위를 쓸 수 없다.');
     }
+    if (bind) addLog(`속박 ${bind}: 짬타이거의 속도가 느려졌다.`);
     if (R.skip) addLog('롤랑이 흐트러져 이번 장면에는 행동할 수 없다.');
     if (T.skip) addLog('짬타이거가 흐트러졌다. 이번 장면은 일방 공격 기회다.');
     readoutHelp();
@@ -265,6 +272,7 @@
     const R = S.roland, T = S.tiger;
     if (rc && R.broken) { addLog(`롤랑이 흐트러져 ${rCard(rc).name} 책장이 취소됐다.`); rc = null; }
     if (tc && T.broken) { addLog(`짬타이거가 흐트러져 ${tc.def.name} 책장이 취소됐다.`); tc = null; }
+    if (tc && S.destroyTiger) { addLog(`Furioso에 주사위가 모두 파괴되어 ${tc.def.name} 책장이 취소됐다.`); tc = null; }
     if (!rc && !tc) return;
 
     let Aside;
@@ -303,6 +311,7 @@
     }
     await sleep(200);
     hideBanners();
+    if (furioso) STG.furioso(false);
   }
 
   function useRoland(rc) {
@@ -311,8 +320,31 @@
     for (const die of def.dice) {
       if (die.counter) S.roland.counters.push({ die, from: def.name, weapon: def.weapon, id: def.id, pose: def.pose });
     }
+    if (def.onUse) {
+      const R = S.roland;
+      if (def.onUse.light) {
+        const got = Math.min(def.onUse.light, R.maxLight - R.light);
+        R.light += got;
+        if (got) fxFloat('roland', `빛 +${got}`, 'light');
+      }
+      if (def.onUse.draw) draw(def.onUse.draw);
+      addLog(`${def.name}: 빛 회복, 책장 뽑기.`);
+    }
     if (def.special === 'furioso') say('roland', pick(D.LINES.roland.furioso));
     else if (Math.random() < 0.2) say('roland', pick(D.LINES.roland.attack));
+  }
+
+  // 출혈: 짬타이거가 공격 주사위를 굴릴 때 피해를 입고, 출혈은 2/3로 줄어든다
+  function bleed(sd, die) {
+    if (sd.who !== 'tiger' || kindOf(die) !== 'atk') return;
+    const T = S.tiger;
+    const b = T.status.bleed || 0;
+    if (!b) return;
+    T.hp = Math.max(0, T.hp - b);
+    T.status.bleed = Math.floor((b * 2) / 3);
+    fxFloat('tiger', `출혈 -${b}`, 'dmg');
+    addLog(`출혈로 짬타이거가 피해 ${b}를 입었다.`);
+    checkDeath(sd);
   }
 
   function useTiger(tc) {
@@ -339,6 +371,8 @@
     setEmblem('roland', da, va);
     setEmblem('tiger', db, vb);
     markQueue(Aside, Bside);
+    bleed(Bside, db);
+    if (S.phaseEnded) return;
     await sleep(260);
     const ka = kindOf(da), kb = kindOf(db);
     let useA = true, useB = true, result;
@@ -359,12 +393,17 @@
       result = '서로 수비, 효과 없음';
       tie(Aside, Bside, da, db);
     }
+    if (da.furioso && va > vb && !S.phaseEnded) {
+      Bside.i = Bside.q.length;
+      S.destroyTiger = true;
+      result += ', 짬타이거의 주사위 전부 파괴';
+    }
     showReadout(da, va, db, vb, result);
     addLog(`${D.DICE[da.t].label} ${va} 대 ${D.DICE[db.t].label} ${vb}: ${result}`);
     if (useA) Aside.i++;
     if (useB) Bside.i++;
     markQueue(Aside, Bside);
-    await sleep(Aside.def && Aside.def.special === 'furioso' ? 420 : 760);
+    await sleep(da.furioso ? 1700 : 760);
     restPoses();
   }
 
@@ -439,7 +478,8 @@
     const u = Y.u;
     const res = resistOf(Y.who, die.t);
     const mult = u.broken ? 2 : 1;
-    const real = Math.max(1, Math.round(value * res.mult * mult));
+    const fragile = (u.status && u.status.fragile) || 0;
+    const real = Math.max(1, Math.round(value * res.mult * mult) + fragile);
     const stDmg = Math.max(1, Math.round(value * res.mult));
     u.hp = Math.max(0, u.hp - real);
     const isMax = value >= die.max;
@@ -449,7 +489,17 @@
     let txt = `${nm(X)} 승리, ${nm(Y)} 피해 ${real}`;
     if (res.mult !== 1) txt += ` (${res.label})`;
     if (mult > 1) txt += ' (흐트러짐 2배)';
+    if (fragile) txt += ` (취약 +${fragile})`;
     txt += damageStagger(Y, stDmg);
+    if (die.onHitSt && !X.u.broken) {
+      X.u.st = Math.min(X.u.maxSt, X.u.st + die.onHitSt);
+      txt += `, 흐트러짐 ${die.onHitSt} 회복`;
+    }
+    if (X.def && X.def.inflict && Y.who === 'tiger') {
+      const P = S.tiger.pending;
+      for (const [k, n] of Object.entries(X.def.inflict)) P[k] = Math.max(P[k] || 0, n);
+      txt += ', 다음 장면 출혈·속박·취약';
+    }
     if (Y.ref && Y.def && Y.def.gimmick === 'heal') Y.ref.broken = true;
     if (X.def && X.def.onHit && !X.hitApplied && Y.who === 'roland') {
       X.hitApplied = true;
@@ -495,12 +545,14 @@
     const v = rand(dx.min, dx.max);
     setEmblem(X.who, dx, v);
     setEmblem(Y.who, null, null);
+    bleed(X, dx);
+    if (S.phaseEnded) return;
     await sleep(220);
     const result = hit(X, Y, v, dx);
     if (X.who === 'roland') showReadout(dx, v, null, null, result);
     else showReadout(null, null, dx, v, result);
     addLog(`일방 ${D.DICE[dx.t].label} ${v}: ${result}`);
-    await sleep(X.def && X.def.special === 'furioso' ? 380 : 640);
+    await sleep(dx.furioso ? 1700 : 640);
     restPoses();
   }
 
@@ -643,9 +695,10 @@
       if (!sd.def || (!sd.q.length && !sd.ref)) { el.hidden = true; return; }
       el.className = `cbanner ${sd.who} rar-${sd.def.rarity || 'enemy'}`;
       el.innerHTML =
-        `<div class="cbArt">${cardArt(sd.def)}</div>` +
-        `<div class="cbBody"><b class="cbName">${sd.def.name}</b><span class="cbQueue">${sd.q.map((x) => A.dieIcon(x)).join('')}</span></div>` +
-        `<div class="emblem"><span class="emIcon"></span><b class="emVal"></b></div>`;
+        `<div class="cbHead"><b class="cbName">${sd.def.name}</b></div>` +
+        `<div class="cbBody"><div class="cbArt">${cardArt(sd.def)}</div>` +
+        `<div class="cbSide"><div class="emblem"><span class="emIcon"></span><b class="emVal"></b></div>` +
+        `<span class="cbQueue">${sd.q.map((x) => A.dieIcon(x)).join('')}</span></div></div>`;
       el.hidden = false;
     };
     fill($('bannerR'), Aside);
@@ -761,8 +814,8 @@
       S.faceRank = ph.rank;
       $('tFace').innerHTML = `<span class="faceImg tiger" style="background-image:url('${tigerArt({ tpose: 'idle' })}')"></span>`;
     }
-    STG.setFeet('roland', R.hp, R.st);
-    STG.setFeet('tiger', T.hp, T.st);
+    STG.setFeet('roland', R.hp, R.st, R.maxHp, R.maxSt);
+    STG.setFeet('tiger', T.hp, T.st, T.maxHp, T.maxSt);
     STG.setBroken('roland', R.broken);
     STG.setBroken('tiger', T.broken);
 
@@ -776,6 +829,8 @@
       tChips.push(`<span class="chip ammo">탄약 <span class="pips">${pips}</span></span>`);
     }
     if (T.broken) tChips.push('<span class="chip bad">흐트러짐 · 받는 피해 2배</span>');
+    for (const [k, n] of Object.entries(T.status || {})) if (n) tChips.push(`<span class="chip bad">${D.STATUS[k].name} ${n}</span>`);
+    for (const [k, n] of Object.entries(T.pending || {})) if (n) tChips.push(`<span class="chip warn">다음 장면 · ${D.STATUS[k].name} ${n}</span>`);
     $('tigerExtra').innerHTML = tChips.join('');
     const rChips = [];
     if (R.broken) rChips.push('<span class="chip bad">흐트러짐 · 받는 피해 2배</span>');
