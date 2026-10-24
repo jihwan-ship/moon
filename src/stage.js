@@ -13,7 +13,7 @@ window.JJAM_STAGE = (() => {
     tAttack: { roland: 350, tiger: 560 },
   };
 
-  const ROLAND_POSES = ['idle', 'hurt', 'move', 'evade', 'guard', 'slash', 'thrust', 'crystal', 'mook_slash', 'mook_thrust',
+  const ROLAND_POSES = ['slash_ready', 'idle', 'hurt', 'move', 'evade', 'guard', 'slash', 'thrust', 'crystal', 'mook_slash', 'mook_thrust',
     'wheels_swing', 'wheels_smash', 'ranga_claw', 'logic_pistols', 'zelkova_axe', 'zelkova_crouch'];
   const FX = ['ink_arc', 'ink_arc_big', 'ink_arc_wide', 'ink_swipe', 'ink_rise', 'claw_arc', 'dash_trail', 'smoke_trail', 'debris', 'muzzle', 'muzzle_big'];
   const CARDS = ['zelkova', 'ranga', 'oldboys', 'allas', 'mook', 'logic', 'durandal', 'crystal', 'wheels', 'furioso'];
@@ -255,9 +255,16 @@ window.JJAM_STAGE = (() => {
         const x = a.x + (i - (list.length - 1) / 2) * 58;
         const y = top;
         const objs = plate(x, y - 40, d);
-        const face = scene.add.rectangle(x, y + 8, 36, 36, who === 'roland' ? 0x1a5c9a : 0x9a1a4a)
-          .setStrokeStyle(3, who === 'roland' ? 0xbfefff : 0xffc4da);
-        const shine = scene.add.rectangle(x - 6, y + 2, 14, 10, 0xffffff, 0.25);
+        const hex = [];
+        for (let k = 0; k < 6; k++) {
+          const a = Math.PI / 6 + (k * Math.PI) / 3;
+          hex.push(Math.cos(a) * 22, Math.sin(a) * 22);
+        }
+        const col = who === 'roland' ? 0xbfefff : 0xff7ac0;
+        const glow = scene.add.polygon(x, y + 8, hex.map((v) => v * 1.25), col, 0.18);
+        const face = scene.add.polygon(x, y + 8, hex, 0x140a14, 0.92).setStrokeStyle(3, col);
+        const shine = scene.add.polygon(x, y + 8, hex.map((v) => v * 0.72), col, 0.12);
+        objs.push(glow);
         const num = scene.add.text(x, y + 8, String(d.speed), {
           fontFamily: 'JetBrains Mono, monospace', fontSize: '22px', fontStyle: '700', color: '#ffffff', stroke: '#000', strokeThickness: 3,
         }).setOrigin(0.5);
@@ -369,6 +376,89 @@ window.JJAM_STAGE = (() => {
     scene.time.delayedCall(dur(260), () => a.spr.clearTint());
   }
 
+  // ---------- 흰 초승달 베기 ----------
+  // 중심 (cx, cy), 반지름 r, 각도 a0 -> a1 (도, 화면 기준). 두께는 가운데가 가장 두껍다.
+  function crescent(cx, cy, r, a0, a1, thick, color = 0xffffff, ms = 130) {
+    const g = scene.add.graphics().setDepth(36).setBlendMode(Phaser.BlendModes.ADD);
+    const N = 40;
+    const draw = (p) => {
+      g.clear();
+      const n = Math.max(2, Math.floor(N * p));
+      const outer = [], inner = [];
+      for (let i = 0; i <= n; i++) {
+        const t = i / N;
+        const a = Phaser.Math.DegToRad(a0 + (a1 - a0) * t);
+        const w = thick * Math.sin(Math.PI * Math.min(1, t / Math.max(p, 0.01)) ** 0.8);
+        outer.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r });
+        inner.push({ x: cx + Math.cos(a) * (r - w), y: cy + Math.sin(a) * (r - w) });
+      }
+      const poly = outer.concat(inner.reverse());
+      g.lineStyle(thick * 1.6, color, 0.10);
+      g.strokePoints(outer);
+      g.lineStyle(thick * 0.7, color, 0.22);
+      g.strokePoints(outer);
+      g.fillStyle(color, 0.55);
+      g.fillPoints(poly, true);
+      g.lineStyle(3, 0xffffff, 1);
+      g.strokePoints(outer);
+    };
+    const prog = { p: 0 };
+    scene.tweens.add({
+      targets: prog, p: 1, duration: dur(ms), ease: 'Cubic.easeOut', onUpdate: () => draw(prog.p),
+      onComplete: () => scene.tweens.add({ targets: g, alpha: 0, duration: dur(260), onComplete: () => g.destroy() }),
+    });
+    for (let k = 0; k < 5; k++) {
+      const a = Phaser.Math.DegToRad(a0 + (a1 - a0) * Math.random());
+      const sp = scene.add.image(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 'star').setDepth(37).setScale(0.35).setBlendMode(Phaser.BlendModes.ADD);
+      scene.tweens.add({ targets: sp, alpha: 0, scale: 0.8, delay: dur(ms * 0.6), duration: dur(380), onComplete: () => sp.destroy() });
+    }
+  }
+
+  // 책장별 공격 동작(롤랑, 오른쪽을 본다). t: 시작 시각(ms), dx: 그 단계에서 미끄러지는 거리,
+  // arc: [중심 x 오프셋(롤랑 기준), 중심 y(바닥 위 높이), 반지름, 시작 각, 끝 각, 두께]
+  const MOVES = {
+    // 뒤랑달: 아래로 베고, 위로 한 번 더
+    durandal_down: [
+      { t: 0, pose: 'slash_ready' },
+      { t: 110, pose: 'move', dx: 70, arc: [70, 230, 210, -75, 85, 22] },
+    ],
+    durandal_up: [
+      { t: 0, pose: 'move' },
+      { t: 100, pose: 'slash', dx: 50, arc: [80, 170, 220, 80, -85, 22] },
+    ],
+    // 크리스탈 아틀리에: 왼쪽으로 물러나며 두 번, 오른쪽으로 파고들며 두 번
+    crystal_left: [
+      { t: 0, pose: 'crystal', dx: -60, arc: [120, 210, 170, -60, 70, 16], color: 0xffd0ec },
+      { t: 130, pose: 'move', dx: -60, arc: [110, 200, 160, 70, -55, 16], color: 0xd0f6ff },
+    ],
+    crystal_right: [
+      { t: 0, pose: 'crystal', dx: 90, arc: [120, 210, 170, -60, 70, 16], color: 0xd0f6ff },
+      { t: 130, pose: 'move', dx: 90, arc: [110, 200, 160, 70, -55, 16], color: 0xffd0ec },
+    ],
+    // 묵 공방: 칼집을 쥐고 멈췄다가 상대를 지나치며 거대한 초승달 한 번
+    mook: [
+      { t: 0, pose: 'mook_slash' },
+      { t: 230, pose: 'mook_thrust', dx: 230, arc: [60, 260, 330, 115, -40, 36] },
+    ],
+  };
+
+  function runMove(who, key, contactX) {
+    const steps = MOVES[key];
+    let x = contactX;
+    for (const st0 of steps) {
+      later(st0.t, () => {
+        const a = st[who];
+        if (!a.broken) setPoseOf(who, st0.pose);
+        if (st0.dx) { x += st0.dx; slide(who, x, 90, 'Quad.easeOut'); }
+        if (st0.arc) {
+          const [ox, h, r, a0, a1, th] = st0.arc;
+          later(40, () => crescent(st[who].x + ox, GROUND - h, r, a0, a1, th, st0.color || 0xffffff));
+        }
+      });
+    }
+    return steps[steps.length - 1].t + 90;
+  }
+
   // ---------- 합 한 번의 연출 ----------
   // game.js가 판정하는 동안 begin()~play() 사이의 연출 호출을 모아 두었다가 한 흐름으로 재생한다.
   const DIR = { roland: 1, tiger: -1 };
@@ -390,8 +480,7 @@ window.JJAM_STAGE = (() => {
 
   function redFlash(who) {
     const spr = st[who].spr;
-    spr.setTintFill(0xffffff);
-    later(50, () => spr.setTint(0xff5040));
+    spr.setTint(0xff5040);
     later(320, () => spr.clearTint());
   }
 
@@ -425,13 +514,15 @@ window.JJAM_STAGE = (() => {
     }
   }
 
-  function hitFx(h) {
+  function hitFx(h, ownArcs) {
     const t = st[h.target];
     const x = t.x;
     const y = GROUND - 180;
     const fxKey = h.attacker === 'roland' ? POSE_FX[h.pose] : TIGER_FX[h.pose];
     const flip = h.attacker === 'tiger';
-    if (fxKey === 'muzzle') {
+    if (ownArcs) {
+      // 책장 동작이 이미 초승달을 그렸다
+    } else if (fxKey === 'muzzle') {
       const a = st[h.attacker];
       fxImage('muzzle', a.x + (flip ? -240 : 240), GROUND - 230, { flip: !flip, scale: 0.95 });
       burst(x, y, 0xffffff, 1);
@@ -469,8 +560,13 @@ window.JJAM_STAGE = (() => {
       }
     });
     // 3. 적중 순간: 공격 자세로 파고들고, 아주 잠깐 멈춘 뒤 결과
+    let resultAt = 70;
     later(250, () => {
       for (const [who, pose] of Object.entries(r.strikes)) {
+        if (r.moves[who] && !st[who].broken) {
+          resultAt = Math.max(resultAt, runMove(who, r.moves[who], contact[who]));
+          continue;
+        }
         if (!st[who].broken) setPoseOf(who, pose);
         slide(who, contact[who] + DIR[who] * 60, 70, 'Quad.easeOut');
       }
@@ -494,10 +590,10 @@ window.JJAM_STAGE = (() => {
         });
         return;
       }
-      later(70, () => {
+      later(resultAt, () => {
         if (r.hit) {
           const t = r.hit.target;
-          hitFx(r.hit);
+          hitFx(r.hit, !!r.moves[r.hit.attacker]);
           if (!st[t].broken) setPoseOf(t, 'hurt');
           slide(t, contact[t] - DIR[t] * (r.hit.isMax ? 190 : 140), 260, 'Cubic.easeOut');
           hop(t, r.hit.isMax ? 36 : 22, 260);
@@ -528,7 +624,8 @@ window.JJAM_STAGE = (() => {
         r.floats.forEach((f) => float(...f));
       });
     });
-    const end = furioso ? 250 + 1450 : 250 + 600;
+    const moveLen = Math.max(0, ...Object.values(r.moves).map((k) => MOVES[k][MOVES[k].length - 1].t + 90));
+    const end = furioso ? 250 + 1450 : 250 + 600 + moveLen;
     // 4. 제자리로
     later(end, () => {
       for (const who of ['roland', 'tiger']) {
@@ -551,7 +648,7 @@ window.JJAM_STAGE = (() => {
   const api = {
     ready,
     begin() {
-      rec = { strikes: {}, hit: null, guards: [], dodge: null, spark: false, floats: [] };
+      rec = { strikes: {}, moves: {}, hit: null, guards: [], dodge: null, spark: false, floats: [] };
     },
     play() {
       const r = rec;
@@ -693,8 +790,8 @@ window.JJAM_STAGE = (() => {
     },
     pose: setPoseOf,
     // 공격 순간: 공격자 자세와 앞으로 내딛기
-    strike(who, pose) {
-      if (rec) { rec.strikes[who] = pose; return; }
+    strike(who, pose, move) {
+      if (rec) { rec.strikes[who] = pose; if (move && MOVES[move]) rec.moves[who] = move; return; }
       const a = st[who];
       if (!a) return;
       if (!a.broken) setPoseOf(who, pose);

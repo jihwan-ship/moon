@@ -422,8 +422,11 @@ h2 { margin: 0; font-family: var(--f-display); font-size: 16px; font-weight: 800
   box-shadow: 0 0 10px color-mix(in srgb, var(--rar) 35%, transparent);
   transition: transform 0.15s;
 }
-.hcard:hover { transform: translateY(-3px); }
-.hcard[aria-disabled="true"] { opacity: 0.4; cursor: not-allowed; transform: none; }
+.hand { padding: 26px 8px 10px; gap: 0; }
+.hcard { margin-left: -14px; position: relative; transform-origin: 50% 100%; box-shadow: -6px 0 10px rgba(0,0,0,.6), 0 0 10px color-mix(in srgb, var(--rar) 35%, transparent); }
+.hcard:first-child { margin-left: 0; }
+.hcard:hover, .hcard:focus-visible { transform: translateY(-18px) scale(1.12); z-index: 5; }
+.hcard[aria-disabled="true"] { opacity: 0.4; cursor: not-allowed; }
 .hcTop {
   display: flex; align-items: center; gap: 4px;
   padding: 3px 4px;

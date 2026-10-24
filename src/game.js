@@ -378,6 +378,9 @@
     const ka = kindOf(da), kb = kindOf(db);
     let useA = true, useB = true, result;
     if (ka === 'atk' && kb === 'atk') {
+      // 지는 쪽도 휘두르는 동작은 보여 준다
+      STG.strike('roland', atkPose(Aside, da), atkMove(Aside, da));
+      STG.strike('tiger', atkPose(Bside, db), atkMove(Bside, db));
       if (va > vb) result = hit(Aside, Bside, va, da);
       else if (vb > va) result = hit(Bside, Aside, vb, db);
       else { result = '동점, 서로 상쇄'; tie(Aside, Bside, da, db); }
@@ -409,6 +412,14 @@
 
   // ---------- 자세 고르기 ----------
 
+  // 책장에 정해진 공격 동작: 공격 주사위 순서대로 moves의 항목을 쓴다
+  function atkMove(sd, die) {
+    if (sd.who !== 'roland' || !sd.def || !sd.def.moves) return null;
+    const atk = sd.def.dice.filter((x) => kindOf(x) === 'atk');
+    const k = atk.indexOf(die);
+    return k < 0 ? null : sd.def.moves[k % sd.def.moves.length];
+  }
+
   function atkPose(sd, die) {
     if (sd.who === 'tiger') return (sd.def && sd.def.tpose) || 'claw';
     if (die.w) return D.WEAPON_POSE[die.w] || 'slash';
@@ -423,7 +434,7 @@
 
   function tie(Aside, Bside, da, db) {
     for (const [sd, die] of [[Aside, da], [Bside, db]]) {
-      if (kindOf(die) === 'atk') STG.strike(sd.who, atkPose(sd, die));
+      if (kindOf(die) === 'atk') STG.strike(sd.who, atkPose(sd, die), atkMove(sd, die));
       else STG.guard(sd.who, defPose(sd, die));
     }
     STG.spark();
@@ -434,7 +445,7 @@
   function atkVsDef(X, Y, vx, vy, dx, dy) {
     if (dy.t === 'block') {
       if (vx > vy) return [true, true, hit(X, Y, vx - vy, dx)];
-      STG.strike(X.who, atkPose(X, dx));
+      STG.strike(X.who, atkPose(X, dx), atkMove(X, dx));
       STG.guard(Y.who, defPose(Y, dy));
       if (vy > vx) {
         onWin(Y, dy);
@@ -445,7 +456,7 @@
     if (vy > vx) {
       onWin(Y, dy);
       if (!Y.u.broken) Y.u.st = Math.min(Y.u.maxSt, Y.u.st + vy);
-      STG.strike(X.who, atkPose(X, dx));
+      STG.strike(X.who, atkPose(X, dx), atkMove(X, dx));
       STG.dodge(Y.who);
       return [true, false, `${nm(Y)} 회피 성공, 흐트러짐 ${vy} 회복 (회피 주사위 재사용)`];
     }
@@ -479,7 +490,7 @@
     u.hp = Math.max(0, u.hp - real);
     const isMax = value >= die.max;
     const pose = atkPose(X, die);
-    STG.strike(X.who, pose);
+    STG.strike(X.who, pose, atkMove(X, die));
     STG.hit(X.who, Y.who, pose, real, isMax, { furioso: !!(X.def && X.def.special === 'furioso') });
     let txt = `${nm(X)} 승리, ${nm(Y)} 피해 ${real}`;
     if (res.mult !== 1) txt += ` (${res.label})`;
