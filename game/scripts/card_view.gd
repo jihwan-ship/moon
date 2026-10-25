@@ -51,7 +51,10 @@ func setup(id_: String, def_: Dictionary, is_enemy := false, is_mini := false) -
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	# 그리기 도중에 처음 불러온 텍스처는 하얗게 나올 수 있어서 미리 불러 둔다
 	var p: String = ICONS.get(id, "")
-	icon = load("res://art/parts/%s.png" % p) if p != "" else null
+	if def.has("art") and ResourceLoader.exists(def["art"]):
+		icon = load(def["art"])
+	else:
+		icon = load("res://art/parts/%s.png" % p) if p != "" else null
 	queue_redraw()
 
 

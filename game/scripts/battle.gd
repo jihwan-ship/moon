@@ -539,7 +539,12 @@ func _new_game() -> void:
 	var pl: Dictionary = GameData.PLAYER
 	P = {"hp": pl["hp"], "max_hp": pl["hp"], "mental": pl["mental"], "max_mental": pl["mental"], "broken": false, "skip": false,
 		"energy": pl["energy"], "max_energy": pl["energy"], "status": {}, "pending": {}, "focus": 0}
-	deck = GameData.DECK.duplicate()
+	var roland := Cfg.mode == "roland"
+	cards = GameData.roland_cards() if roland else GameData.player_cards()
+	if roland:
+		P["energy"] = 4
+		P["max_energy"] = 4
+	deck = (GameData.ROLAND_DECK if roland else GameData.DECK).duplicate()
 	deck.shuffle()
 	discard = []
 	hand = []
@@ -1165,6 +1170,10 @@ func _win_focus(side: Dictionary, n: int) -> void:
 func _strike(who: String, side: Dictionary, dd: Dictionary) -> void:
 	var p = pup[who]
 	var anim: String = side["def"].get("anim", "")
+	if anim.begins_with("r_") and who == "s":
+		if not _side(who)["broken"]:
+			await _strike_roland(anim, side, dd)
+		return
 	if anim == "":
 		anim = "claw" if who == "t" else ("stab" if dd["t"] == "pierce" else "butt")
 	if _side(who)["broken"]:
@@ -1399,7 +1408,7 @@ func _tiger_down() -> void:
 	P["mental"] = P["max_mental"]
 	P["broken"] = false
 	if phase >= 2:
-		P["max_energy"] = 4
+		P["max_energy"] = 5 if Cfg.mode == "roland" else 4
 	_refresh_hud()
 	Sfx.play("fanfare")
 	var t := _label("%s 진급!" % GameData.PHASES[phase]["rank"], 96, Color("e8913c"), ft, 16)
@@ -1480,6 +1489,23 @@ func _run_test() -> void:
 		test_mode = test_mode.substr(6) if test_mode.length() > 6 else "plan"
 	_new_game()
 	_start_turn()
+	if test_mode == "cards":
+		# 공방 책장을 하나씩 차례로 써 본다(짬타이거는 맞기만 한다)
+		for id_ in GameData.ROLAND_DECK + ["ult"]:
+			T["hp"] = 999
+			T["max_hp"] = 999
+			T["mental"] = 999
+			T["max_mental"] = 999
+			intents = []
+			hand = [id_]
+			P["energy"] = 9
+			_rebuild_planning()
+			_on_hand(0)
+			await wait(0.2)
+			_on_go()
+			while busy:
+				await wait(0.1)
+		return
 	if test_mode == "plan":
 		for i in 2:
 			_on_hand(0)
@@ -1497,3 +1523,153 @@ func _run_test() -> void:
 			await wait(0.2)
 			_on_go()
 			await wait(0.5)
+
+
+# ---------------------------------------------------------------- 롤랑 모드 공격
+
+func _arc(c: Vector2, r: float, a0: float, a1: float, th: float, col := Color.WHITE, d := 0.12) -> void:
+	Fx.crescent(fxl, c, r, a0, a1, th, col, d)
+
+
+## 공방별 동작. 맞는 순간에 돌아온다
+func _strike_roland(anim: String, side: Dictionary, dd: Dictionary) -> void:
+	var p = pup["s"]
+	var x0: float = p.position.x
+	var tgt := _body("t")
+	var k: int = side["i"]
+	match anim:
+		"r_durandal":
+			if k % 2 == 0:
+				# 횡베기: 대상을 감싸는 큰 초승달
+				p.show_img("slash_ready")
+				await wait(0.12)
+				Sfx.play("swing")
+				p.show_img("slash")
+				_slide("s", x0 + 70, 0.08)
+				await wait(0.04)
+				_arc(tgt + Vector2(-60, 0), 230, -100, 100, 32)
+			else:
+				# 올려치기
+				p.show_img("move")
+				await wait(0.1)
+				Sfx.play("swing")
+				p.show_img("slash")
+				_slide("s", x0 + 50, 0.08)
+				await wait(0.04)
+				_arc(tgt + Vector2(-40, 40), 240, 110, -75, 32)
+		"r_zelkova":
+			if dd["t"] == "slash":
+				# 도끼로 옆을 후려친다: 반지름이 큰 원의 아랫부분이라 거의 수평으로 지나간다
+				p.show_img("zelkova_crouch")
+				await wait(0.12)
+				Sfx.play("swing")
+				p.show_img("zelkova_axe")
+				_slide("s", x0 + 60, 0.08)
+				await wait(0.04)
+				_arc(tgt + Vector2(0, -300), 300, 125, 55, 26, Color(1, 0.93, 0.85))
+			else:
+				p.show_img("zelkova_axe")
+				await wait(0.1)
+				Sfx.play("swing")
+				p.show_img("zelkova_crouch")
+				_slide("s", x0 + 40, 0.08)
+				await wait(0.04)
+				_arc(tgt + Vector2(-30, 60), 200, 100, -60, 24)
+		"r_ranga":
+			p.show_img("move")
+			await wait(0.07)
+			Sfx.play("swing", -2)
+			p.show_img("ranga_claw")
+			_slide("s", x0 + 90, 0.07)
+			await wait(0.03)
+			for j in 3:
+				_arc(tgt + Vector2(-30 + j * 16, -30 + j * 18), 110, -150 + (k % 2) * 60, -40 + (k % 2) * 60, 10, Color(1, 0.8, 0.85) if j % 2 == 0 else Color(0.8, 0.95, 1), 0.08)
+		"r_oldboys":
+			p.show_img("slash_ready")
+			await wait(0.14)
+			Sfx.play("swing")
+			p.show_img("wheels_swing")
+			_slide("s", x0 + 60, 0.08)
+			await wait(0.05)
+			_arc(tgt + Vector2(-80, -20), 200, -80, 70, 30, Color(1, 0.88, 0.7))
+			Fx.ring(fxl, tgt + Vector2(0, 80), Color(1, 0.85, 0.6), 20, 160, 0.3, 10)
+		"r_allas":
+			p.show_img("move")
+			await wait(0.12)
+			Sfx.play("swing")
+			p.show_img("thrust")
+			_slide("s", x0 + 130, 0.07, Tween.TRANS_CUBIC)
+			await wait(0.04)
+			Fx.thrust(fxl, _body("s") + Vector2(40, -20), tgt + Vector2(260, -10), Color(1, 0.75, 0.4), 40)
+			Fx.thrust(fxl, _body("s") + Vector2(40, -20), tgt + Vector2(220, -10), Color(1, 1, 1), 14)
+		"r_mook":
+			# 칼집을 쥐고 잠깐 멈췄다가 지나치며 벤다
+			p.show_img("mook_slash")
+			await wait(0.28)
+			Sfx.play("swing")
+			p.show_img("mook_thrust")
+			_slide("s", pup["t"].position.x + 40, 0.09, Tween.TRANS_CUBIC)
+			await wait(0.05)
+			_arc(tgt + Vector2(-140, 40), 320, 115, -45, 40)
+			Fx.thrust(fxl, Vector2(x0, tgt.y), tgt + Vector2(160, 0), Color(1, 1, 1), 8)
+		"r_logic":
+			p.show_img("logic_pistols")
+			await wait(0.1)
+			var mz: Vector2 = _body("s") + Vector2(150, -30)
+			if dd["t"] == "blunt":
+				# 샷건
+				Sfx.play("boom", -6)
+				Sfx.play("gun")
+				Fx.muzzle(fxl, mz, 1.6)
+				for j in 5:
+					Fx.thrust(fxl, mz, tgt + Vector2(0, -60 + j * 30), Color(1, 0.85, 0.5), 5)
+				_slide("s", x0 - 40, 0.1)
+				_shake(10, 0.15)
+			else:
+				Sfx.play("gun")
+				Fx.muzzle(fxl, mz, 1.0)
+				Fx.thrust(fxl, mz, tgt + Vector2(0, randf_range(-20, 20)), Color(1, 0.9, 0.6), 6)
+			await wait(0.03)
+		"r_crystal":
+			p.show_img("crystal")
+			var back: bool = k <= 1
+			_slide("s", x0 + (-50 if back else 80), 0.1)
+			Sfx.play("swing")
+			await wait(0.05)
+			_arc(tgt + Vector2(-60, 0), 170, -60, 70, 18, Color(1, 0.75, 0.9), 0.1)
+			await wait(0.1)
+			p.show_img("move", false)
+			Sfx.play("swing", -3)
+			_slide("s", x0 + (-100 if back else 150), 0.1)
+			_arc(tgt + Vector2(-50, 10), 160, 70, -55, 18, Color(0.75, 0.95, 1), 0.1)
+			await wait(0.04)
+		"r_wheels":
+			p.show_img("wheels_swing")
+			await wait(0.22)
+			Sfx.play("swing")
+			p.show_img("wheels_smash")
+			_slide("s", x0 + 80, 0.09)
+			await wait(0.05)
+			_arc(tgt + Vector2(-120, -40), 260, -95, 60, 44)
+			Fx.explosion(fxl, Vector2(tgt.x, GROUND - 10))
+			_shake(18, 0.3)
+		"r_ult":
+			# Furioso: 아홉 공방을 차례로 휘두른다
+			Sfx.play("break", -6)
+			var seq := ["zelkova_axe", "ranga_claw", "wheels_swing", "thrust", "mook_thrust", "logic_pistols", "crystal", "slash", "wheels_smash"]
+			for j in seq.size():
+				p.show_img(seq[j], false)
+				_slide("s", x0 + 40 + (j % 3) * 30, 0.05)
+				Sfx.play("gun" if seq[j] == "logic_pistols" else "swing", -4)
+				if seq[j] == "thrust":
+					Fx.thrust(fxl, _body("s") + Vector2(40, -20), tgt + Vector2(200, 0), Color(1, 1, 1), 18)
+				else:
+					var a0 := randf_range(-140, -40)
+					_arc(tgt + Vector2(randf_range(-60, 20), randf_range(-40, 40)), randf_range(150, 240), a0, a0 + 170 * (1 if j % 2 == 0 else -1), 22, Color(1, 1, 1), 0.07)
+				Fx.sparkle(fxl, tgt + Vector2(randf_range(-80, 80), randf_range(-100, 60)), 1.2)
+				await wait(0.09)
+			_arc(tgt + Vector2(-100, 0), 300, -100, 100, 50)
+			_shake(20, 0.35)
+		_:
+			p.show_img("slash")
+			await wait(0.08)

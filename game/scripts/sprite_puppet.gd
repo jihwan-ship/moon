@@ -6,9 +6,9 @@ extends Node2D
 const DIR := "res://art/roland/"
 # 이병 포즈 이름 -> 롤랑 자세 그림
 const MAP := {
-	"idle": "idle", "run": "move", "stab_wind": "move", "stab": "thrust", "butt_wind": "slash_ready", "butt": "slash",
+	"idle": "stand", "run": "move", "stab_wind": "move", "stab": "thrust", "butt_wind": "slash_ready", "butt": "slash",
 	"aim": "logic_pistols", "recoil": "logic_pistols", "block": "guard", "evade": "evade", "hurt": "hurt",
-	"throw_wind": "slash_ready", "throw": "wheels_smash", "eat": "idle", "cheer": "idle", "down": "hurt", "victory": "idle",
+	"throw_wind": "slash_ready", "throw": "wheels_smash", "eat": "stand", "cheer": "stand", "down": "hurt", "victory": "stand",
 }
 
 var kind := "r"
@@ -33,7 +33,7 @@ func setup(_kind: String) -> void:
 	spr.flip_h = true
 	spr.scale = Vector2.ONE * 0.62
 	body_root.add_child(spr)
-	_show("idle")
+	_show("stand")
 
 
 func _show(img: String) -> void:
@@ -45,6 +45,15 @@ func _show(img: String) -> void:
 	var foot: Array = m["foot"]
 	# 뒤집었으므로 발 기준점의 x도 반대편에서 잰다
 	spr.offset = Vector2(-(float(m["w"]) - float(foot[0])), -float(foot[1]))
+
+
+## 롤랑 자세 그림을 이름으로 바로 고른다(공방별 공격 동작용)
+func show_img(img: String, squash := true) -> void:
+	var changed := img != cur_pose
+	_show(img)
+	if changed and squash:
+		body_root.scale = Vector2(1.08, 0.93)
+		create_tween().tween_property(body_root, "scale", Vector2.ONE, 0.1).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
 func pose(name_: String, dur := 0.18, _trans := Tween.TRANS_QUAD, _ease := Tween.EASE_OUT) -> Tween:
