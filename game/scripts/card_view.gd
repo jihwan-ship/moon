@@ -20,6 +20,8 @@ var disabled := false:
 var no_evade := false
 var bonus := 0
 var hovered := false
+var base_y := NAN  # 손패에서의 원래 높이. 마우스를 올리면 위로 올라온다
+var _hover_tw: Tween
 var icon: Texture2D
 const FONT_R := preload("res://fonts/Pretendard-SemiBold.ttf")
 const FONT_B := preload("res://fonts/Pretendard-Black.ttf")
@@ -69,10 +71,23 @@ func _gui_input(e: InputEvent) -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_MOUSE_ENTER:
 		hovered = true
+		_lift(true)
 		queue_redraw()
 	elif what == NOTIFICATION_MOUSE_EXIT:
 		hovered = false
+		_lift(false)
 		queue_redraw()
+
+
+func _lift(up: bool) -> void:
+	if mini or is_nan(base_y):
+		return
+	if _hover_tw:
+		_hover_tw.kill()
+	z_index = 5 if up else 0
+	_hover_tw = create_tween().set_parallel(true).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_hover_tw.tween_property(self, "position:y", base_y - (72.0 if up else 0.0), 0.12)
+	_hover_tw.tween_property(self, "scale", Vector2.ONE * (1.08 if up else 1.0), 0.12)
 
 
 func _font(bold := false) -> Font:
@@ -112,7 +127,7 @@ static func draw_die_icon(ci: CanvasItem, c: Vector2, t: String, r: float, off :
 func _draw() -> void:
 	var col := type_color(def, enemy)
 	var rect := Rect2(Vector2.ZERO, size)
-	var lift := -10.0 if hovered and not mini and not disabled else 0.0
+	var lift := 0.0
 	rect.position.y += lift
 	# 판
 	var sb := StyleBoxFlat.new()

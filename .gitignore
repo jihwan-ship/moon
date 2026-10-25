@@ -5,3 +5,6 @@ build/
 
 # Godot
 game/.godot/
+
+# 롤랑 모드용 원작 그림(개인 테스트용, 저장소에 올리지 않음)
+game/art/roland/

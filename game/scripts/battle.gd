@@ -49,6 +49,7 @@ var overlay: Control
 var toast: Label
 
 signal dialog_next
+signal mode_chosen(mode: String)
 
 
 # ---------------------------------------------------------------- 준비
@@ -95,22 +96,32 @@ func _build_world() -> void:
 		sh.z_index = 5
 		world.add_child(sh)
 		shadow[who] = sh
-		var p := Puppet.new()
-		p.z_index = 10
-		world.add_child(p)
-		p.setup(who)
-		p.position = Vector2(HOME[who], GROUND)
-		p.scale = Vector2(SCALE[who] * (1 if who == "s" else -1), SCALE[who])
-		pup[who] = p
+		_make_puppet(who, false)
 	fxl = Node2D.new()
 	fxl.z_index = 30
 	world.add_child(fxl)
+
+
+## 캐릭터를 만든다. 롤랑 모드면 신병 대신 롤랑 자세 그림을 쓴다
+func _make_puppet(who: String, roland: bool) -> void:
+	if pup.has(who):
+		pup[who].queue_free()
+	var p: Node2D = SpritePuppet.new() if roland else Puppet.new()
+	p.z_index = 10
+	world.add_child(p)
+	p.setup(who)
+	p.position = Vector2(HOME[who], GROUND)
+	if roland:
+		p.scale = Vector2.ONE
+	else:
+		p.scale = Vector2(SCALE[who] * (1 if who == "s" else -1), SCALE[who])
+	pup[who] = p
 	# 숨쉬기
-	for who in ["s", "t"]:
-		var tw := create_tween().set_loops()
-		var b: Node2D = pup[who].body_root
-		tw.tween_property(b, "scale:y", 1.018, 0.9 + (0.2 if who == "t" else 0.0)).set_trans(Tween.TRANS_SINE)
-		tw.tween_property(b, "scale:y", 1.0, 0.9 + (0.2 if who == "t" else 0.0)).set_trans(Tween.TRANS_SINE)
+	var tw := p.create_tween().set_loops()
+	var b: Node2D = p.body_root
+	var d := 0.9 + (0.2 if who == "t" else 0.0)
+	tw.tween_property(b, "scale:y", 1.018, d).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(b, "scale:y", 1.0, d).set_trans(Tween.TRANS_SINE)
 
 
 func _label(text: String, size_: int, col := Color("f3eadb"), font: Font = null, outline := 0) -> Label:
@@ -182,7 +193,8 @@ func _build_ui() -> void:
 	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(top)
 	hud["top"] = top
-	var sname := _label("이병 " + Cfg.PLAYER_NAME, 20, Color("f3eadb"), fb)
+	var sname := _label(Cfg.player_title(), 20, Color("f3eadb"), fb)
+	hud["s_name"] = sname
 	sname.position = Vector2(20, 6)
 	top.add_child(sname)
 	hud["s_hp"] = _bar(top, Vector2(20, 34), 230, Color("d23b35"))
@@ -231,7 +243,7 @@ func _build_ui() -> void:
 	root.add_child(lines)
 	# 손패
 	hand_box = Control.new()
-	hand_box.position = Vector2(0, 512)
+	hand_box.position = Vector2(0, 580)
 	hand_box.size = Vector2(1280, 208)
 	hand_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(hand_box)
@@ -329,20 +341,20 @@ func _build_ui() -> void:
 	dsb.border_color = Color("e08a2c")
 	dsb.border_width_top = 3
 	dpanel.add_theme_stylebox_override("panel", dsb)
-	dpanel.position = Vector2(0, 540)
-	dpanel.size = Vector2(1280, 180)
+	dpanel.position = Vector2(0, 598)
+	dpanel.size = Vector2(1280, 122)
 	dpanel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	dialog.add_child(dpanel)
 	dialog_name = _label("", 24, Color("e6bd5c"), ft)
-	dialog_name.position = Vector2(80, 556)
+	dialog_name.position = Vector2(80, 604)
 	dialog.add_child(dialog_name)
-	dialog_text = _label("", 26, Color("f3eadb"), fr)
-	dialog_text.position = Vector2(80, 596)
-	dialog_text.size = Vector2(1120, 100)
+	dialog_text = _label("", 24, Color("f3eadb"), fr)
+	dialog_text.position = Vector2(80, 638)
+	dialog_text.size = Vector2(1000, 76)
 	dialog_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	dialog.add_child(dialog_text)
 	var hint := _label("▼ 눌러서 계속", 15, Color("8a7f70"))
-	hint.position = Vector2(1100, 690)
+	hint.position = Vector2(1120, 694)
 	dialog.add_child(hint)
 	dialog.gui_input.connect(func(e):
 		if e is InputEventMouseButton and e.pressed:
@@ -452,19 +464,32 @@ func _title() -> void:
 	sub.size = Vector2(1280, 40)
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	overlay.add_child(sub)
-	var b := _button("작전 개시", Vector2(540, 420))
+	var roland_ok := SpritePuppet.available()
+	var b := _button("작전 개시", Vector2(540 - (120 if roland_ok else 0), 420))
 	overlay.add_child(b)
+	b.pressed.connect(func(): mode_chosen.emit("soldier"))
+	if roland_ok:
+		var rb := _button("롤랑 모드", Vector2(660, 420))
+		overlay.add_child(rb)
+		rb.pressed.connect(func(): mode_chosen.emit("roland"))
 	var tw := create_tween().set_loops()
 	tw.tween_property(t, "position:y", 140.0, 1.2).set_trans(Tween.TRANS_SINE)
 	tw.tween_property(t, "position:y", 150.0, 1.2).set_trans(Tween.TRANS_SINE)
-	await b.pressed
+	var mode: String = await mode_chosen
 	tw.kill()
 	Sfx.play("click")
+	_set_mode(mode)
 	Sfx.play_bgm("bgm")
 	overlay.visible = false
 	_new_game()
-	await _dialogue(GameData.INTRO)
+	await _dialogue(GameData.INTRO_ROLAND if mode == "roland" else GameData.INTRO)
 	_start_turn()
+
+
+func _set_mode(mode: String) -> void:
+	Cfg.mode = mode
+	_make_puppet("s", mode == "roland")
+	(hud["s_name"] as Label).text = Cfg.player_title()
 
 
 func _button(text: String, pos: Vector2) -> Button:
@@ -493,7 +518,7 @@ func _dialogue(lines_: Array) -> void:
 	_set_planning_ui(false)
 	for ln in lines_:
 		var who: String = ln[0]
-		dialog_name.text = {"s": "이병 " + Cfg.PLAYER_NAME, "t": "짬타이거", "": ""}[who]
+		dialog_name.text = {"s": Cfg.player_title(), "t": "짬타이거", "": ""}[who]
 		dialog_text.text = Cfg.fmt(ln[1])
 		dialog_text.visible_ratio = 0
 		var tw := create_tween()
@@ -690,6 +715,7 @@ func _rebuild_hand() -> void:
 		cv.no_evade = P["status"].has("duck")
 		cv.bonus = 2 if P["status"].has("song") else 0
 		cv.position = Vector2(x0 + i * step, 8 + absf(i - (n - 1) / 2.0) * 4)
+		cv.base_y = cv.position.y
 		cv.rotation = deg_to_rad((i - (n - 1) / 2.0) * 2.5)
 		cv.disabled = cards[id_]["cost"] > avail or slots.find("") < 0
 		cv.pressed.connect(_on_hand.bind(i))
@@ -1137,7 +1163,7 @@ func _win_focus(side: Dictionary, n: int) -> void:
 
 ## 준비 동작부터 맞는 순간까지 재생한다. 맞는 순간에 돌아온다.
 func _strike(who: String, side: Dictionary, dd: Dictionary) -> void:
-	var p: Puppet = pup[who]
+	var p = pup[who]
 	var anim: String = side["def"].get("anim", "")
 	if anim == "":
 		anim = "claw" if who == "t" else ("stab" if dd["t"] == "pierce" else "butt")
@@ -1430,7 +1456,7 @@ func _victory() -> void:
 	await _dialogue(GameData.ENDING)
 	pup["s"].pose("victory", 0.3)
 	Sfx.play("victory")
-	await _result_screen("전역까지 화이팅!", "이병 %s\n%s" % [Cfg.PLAYER_NAME, Cfg.ENDING_MESSAGE], Color("e6bd5c"), false)
+	await _result_screen("전역까지 화이팅!", "%s\n%s" % [Cfg.player_title(), Cfg.ENDING_MESSAGE], Color("e6bd5c"), false)
 
 
 func _defeat() -> void:
@@ -1449,6 +1475,9 @@ func _defeat() -> void:
 
 ## test=플랜: 배치 화면 / test=fight: 자동으로 몇 턴 진행
 func _run_test() -> void:
+	if test_mode.begins_with("roland"):
+		_set_mode("roland")
+		test_mode = test_mode.substr(6) if test_mode.length() > 6 else "plan"
 	_new_game()
 	_start_turn()
 	if test_mode == "plan":
