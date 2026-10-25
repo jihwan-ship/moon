@@ -32,6 +32,15 @@ var spr: Sprite2D
 var meta: Dictionary = {}
 var cur_pose := ""
 var facing := 1.0
+# 무기: 휘두르는 기준점(오른쪽을 볼 때, 발 기준). 손이 아래로 늘어진 그림이라 어깨 높이에 두어
+# 무기가 몸 위로 크게 보이게 한다. WSCALE은 무기 그림 전체에 곱하는 크기
+const HAND := {"F": Vector2(30, -168), "B": Vector2(-24, -172)}
+const WSCALE := 1.5
+var hands: Node2D        # 바라보는 방향에 따라 좌우가 뒤집힌다
+var hand := {}           # "F"/"B" -> 회전하는 손 노드
+var held := {}           # "F"/"B" -> 들고 있는 무기 이름
+var wmeta: Dictionary = {}
+var _aim_tw := {}
 var _tw: Tween
 
 
@@ -47,6 +56,19 @@ func setup(_kind: String) -> void:
 	lean = Node2D.new()
 	body_root.add_child(lean)
 	spr = _new_sprite()
+	if FileAccess.file_exists(DIR + "weapons.json"):
+		wmeta = JSON.parse_string(FileAccess.open(DIR + "weapons.json", FileAccess.READ).get_as_text())
+	hands = Node2D.new()
+	lean.add_child(hands)
+	for h in ["F", "B"]:
+		var n := Node2D.new()
+		n.position = HAND[h]
+		n.z_index = 2 if h == "F" else -2
+		var w := Sprite2D.new()
+		w.centered = false
+		n.add_child(w)
+		hands.add_child(n)
+		hand[h] = n
 	_show("stand")
 
 
@@ -84,6 +106,7 @@ func face(dir: float) -> void:
 		return
 	facing = dir
 	_place(spr, cur_pose)
+	hands.scale.x = dir
 
 
 func _body_to(v: Array, dur: float) -> Tween:
@@ -106,6 +129,7 @@ func show_img(img: String, _squash := true) -> void:
 func pose(name_: String, dur := 0.18, _trans := Tween.TRANS_QUAD, _ease := Tween.EASE_OUT) -> Tween:
 	if name_ in ["idle", "eat", "cheer", "victory"]:
 		face(1.0)
+		clear_weapons()
 	_show("stand")
 	return _body_to(BODY.get(name_, BODY["idle"]), dur)
 
@@ -130,3 +154,37 @@ func set_prop(_p: String, _hand := "F") -> void:
 
 func set_rank(_n: int) -> void:
 	pass
+
+
+# ---------------------------------------------------------------- 무기
+
+## 손에 무기를 쥐인다. 각도(도)는 0이면 앞(상대 쪽), -90이면 위, 90이면 아래를 가리킨다
+func hold(h: String, weapon: String, angle := 60.0) -> void:
+	var n: Node2D = hand[h]
+	var w: Sprite2D = n.get_child(0)
+	held[h] = weapon
+	if weapon == "" or not wmeta.has(weapon):
+		w.texture = null
+		return
+	var m: Dictionary = wmeta[weapon]
+	w.texture = load(DIR + "weapons/%s.png" % weapon)
+	w.offset = -Vector2(m["grip"][0], m["grip"][1])
+	# 그림은 칼날이 왼쪽을 향하므로 180도 돌려서 앞을 향하게 한다
+	w.rotation_degrees = 180
+	w.scale = Vector2.ONE * float(m["scale"]) * WSCALE
+	n.rotation_degrees = angle
+
+
+## 손을 angle까지 휘두른다
+func aim(h: String, angle: float, dur := 0.1, trans := Tween.TRANS_QUAD) -> Tween:
+	if _aim_tw.has(h) and _aim_tw[h]:
+		_aim_tw[h].kill()
+	var tw := create_tween().set_trans(trans).set_ease(Tween.EASE_OUT)
+	tw.tween_property(hand[h], "rotation_degrees", angle, maxf(dur, 0.01))
+	_aim_tw[h] = tw
+	return tw
+
+
+func clear_weapons() -> void:
+	hold("F", "")
+	hold("B", "")

@@ -1534,7 +1534,30 @@ func _arc(c: Vector2, r: float, a0: float, a1: float, th: float, col := Color.WH
 	Fx.crescent(fxl, c, r, a0, a1, th, col, d)
 
 
-## 공방별 동작. 맞는 순간에 돌아온다
+## 잉크 이펙트(art/roland/fx). 회전은 도, sc는 크기
+func _ink(name: String, pos: Vector2, rot := 0.0, sc := 1.0, fh := false, fv := false, life := 0.42) -> void:
+	var path := "res://art/roland/fx/%s.png" % name
+	if not ResourceLoader.exists(path):
+		return
+	var spr := Sprite2D.new()
+	spr.texture = load(path)
+	spr.position = pos
+	spr.rotation_degrees = rot
+	spr.flip_h = fh
+	spr.flip_v = fv
+	spr.z_index = 41
+	spr.scale = Vector2.ONE * sc * 0.8
+	spr.modulate.a = 0.0
+	fxl.add_child(spr)
+	var tw := spr.create_tween()
+	tw.tween_property(spr, "modulate:a", 1.0, 0.03)
+	tw.parallel().tween_property(spr, "scale", Vector2.ONE * sc, 0.08).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(life * 0.45)
+	tw.tween_property(spr, "modulate:a", 0.0, life * 0.55)
+	tw.tween_callback(spr.queue_free)
+
+
+## 공방별 동작. 서 있는 롤랑에게 무기를 쥐여 휘두르고, 받은 잉크 이펙트를 쓴다. 맞는 순간에 돌아온다
 func _strike_roland(anim: String, side: Dictionary, dd: Dictionary) -> void:
 	var p = pup["s"]
 	var x0: float = p.position.x
@@ -1542,148 +1565,199 @@ func _strike_roland(anim: String, side: Dictionary, dd: Dictionary) -> void:
 	var k: int = side["i"]
 	match anim:
 		"r_durandal":
+			p.hold("F", "durandal_sword", 120)
+			p.hold("B", "")
 			if k % 2 == 0:
-				# 횡베기: 대상을 감싸는 큰 초승달
-				p.show_img("slash_ready")
-				await wait(0.12)
+				# 횡베기
+				p.pose("stab_wind", 0.1)
+				p.aim("F", -165, 0.12)
+				await wait(0.13)
 				Sfx.play("swing")
-				p.show_img("slash")
+				p.pose("run", 0.06)
+				p.aim("F", 35, 0.07, Tween.TRANS_CUBIC)
 				_slide("s", x0 + 70, 0.08)
-				await wait(0.04)
-				_arc(tgt + Vector2(-60, 0), 230, -100, 100, 32)
+				await wait(0.05)
+				_ink("slash_flat", tgt + Vector2(0, -10), 0, 1.35, true)
 			else:
 				# 올려치기
-				p.pose("run", 0.08)
-				await wait(0.1)
+				p.aim("F", 110, 0.1)
+				p.pose("stab_wind", 0.1)
+				await wait(0.11)
 				Sfx.play("swing")
-				p.show_img("slash")
+				p.pose("run", 0.06)
+				p.aim("F", -115, 0.08, Tween.TRANS_CUBIC)
 				_slide("s", x0 + 50, 0.08)
-				await wait(0.04)
-				_arc(tgt + Vector2(-40, 40), 240, 110, -75, 32)
+				await wait(0.05)
+				_ink("slash_up", tgt + Vector2(10, -40), 0, 1.0)
 		"r_zelkova":
+			p.hold("F", "zelkova_axe", 150)
+			p.hold("B", "zelkova_mace", 100)
 			if dd["t"] == "slash":
-				# 도끼로 옆을 후려친다: 반지름이 큰 원의 아랫부분이라 거의 수평으로 지나간다
-				p.show_img("zelkova_crouch")
-				await wait(0.12)
+				# 도끼로 옆을 후려친다
+				p.pose("stab_wind", 0.1)
+				p.aim("F", 175, 0.12)
+				await wait(0.13)
 				Sfx.play("swing")
-				p.show_img("zelkova_axe")
+				p.pose("run", 0.06)
+				p.aim("F", 15, 0.08, Tween.TRANS_CUBIC)
 				_slide("s", x0 + 60, 0.08)
-				await wait(0.04)
-				_arc(tgt + Vector2(0, -300), 300, 125, 55, 26, Color(1, 0.93, 0.85))
+				await wait(0.05)
+				_ink("slash_low_r", tgt + Vector2(0, 30), 0, 1.3)
 			else:
-				p.show_img("zelkova_axe")
+				# 메이스로 올려친다
+				p.aim("B", 120, 0.1)
 				await wait(0.1)
 				Sfx.play("swing")
-				p.show_img("zelkova_crouch")
+				p.aim("B", -110, 0.08, Tween.TRANS_CUBIC)
 				_slide("s", x0 + 40, 0.08)
-				await wait(0.04)
-				_arc(tgt + Vector2(-30, 60), 200, 100, -60, 24)
+				await wait(0.05)
+				_ink("slash_up", tgt + Vector2(0, -30), 0, 0.95)
 		"r_ranga":
+			p.hold("F", "ranga_gauntlet", 10)
+			p.hold("B", "ranga_dagger", 80)
 			p.pose("run", 0.06)
 			await wait(0.07)
 			Sfx.play("swing", -2)
-			p.show_img("ranga_claw")
-			_slide("s", x0 + 90, 0.07)
-			await wait(0.03)
-			for j in 3:
-				_arc(tgt + Vector2(-30 + j * 16, -30 + j * 18), 110, -150 + (k % 2) * 60, -40 + (k % 2) * 60, 10, Color(1, 0.8, 0.85) if j % 2 == 0 else Color(0.8, 0.95, 1), 0.08)
+			if dd["t"] == "pierce":
+				# 건틀릿으로 할퀸다
+				p.aim("F", -30, 0.04)
+				_slide("s", x0 + 90, 0.07)
+				await wait(0.04)
+				p.aim("F", 15, 0.05)
+				_ink("thrust_streak", tgt + Vector2(-40, -10 + k * 18), -8 + k * 10, 0.55, true)
+				_ink("hit_spark_side", tgt + Vector2(10, 0), 0, 0.7)
+			else:
+				# 단검으로 벤다
+				p.aim("B", -120, 0.05)
+				await wait(0.05)
+				p.aim("B", 70, 0.06, Tween.TRANS_CUBIC)
+				_slide("s", x0 + 90, 0.07)
+				await wait(0.04)
+				_ink("slash_curve", tgt, 0, 0.7)
 		"r_oldboys":
-			p.show_img("slash_ready")
-			await wait(0.14)
+			p.hold("F", "oldboys_hammer", 100)
+			p.hold("B", "")
+			p.pose("stab_wind", 0.12)
+			p.aim("F", -135, 0.15)
+			await wait(0.16)
 			Sfx.play("swing")
-			p.show_img("wheels_swing")
+			p.pose("run", 0.06)
+			p.aim("F", 55, 0.08, Tween.TRANS_CUBIC)
 			_slide("s", x0 + 60, 0.08)
-			await wait(0.05)
-			_arc(tgt + Vector2(-80, -20), 200, -80, 70, 30, Color(1, 0.88, 0.7))
-			Fx.ring(fxl, tgt + Vector2(0, 80), Color(1, 0.85, 0.6), 20, 160, 0.3, 10)
+			await wait(0.06)
+			_ink("hit_burst_big", tgt + Vector2(0, 40), 0, 0.9)
+			Fx.ring(fxl, tgt + Vector2(0, 90), Color(1, 0.9, 0.7), 20, 170, 0.3, 10)
 		"r_allas":
-			p.pose("run", 0.08)
-			await wait(0.12)
+			p.hold("F", "allas_spear", 0)
+			p.hold("B", "")
+			p.pose("stab_wind", 0.12)
+			p.aim("F", -10, 0.12)
+			await wait(0.13)
 			Sfx.play("swing")
-			p.show_img("thrust")
-			_slide("s", x0 + 130, 0.07, Tween.TRANS_CUBIC)
-			await wait(0.04)
-			Fx.thrust(fxl, _body("s") + Vector2(40, -20), tgt + Vector2(260, -10), Color(1, 0.75, 0.4), 40)
-			Fx.thrust(fxl, _body("s") + Vector2(40, -20), tgt + Vector2(220, -10), Color(1, 1, 1), 14)
-		"r_mook":
-			# 칼집을 쥐고 잠깐 멈췄다가 지나치며 벤다
-			p.show_img("mook_slash")
-			await wait(0.28)
-			Sfx.play("swing")
-			p.show_img("mook_thrust")
-			_slide("s", pup["t"].position.x + 40, 0.09, Tween.TRANS_CUBIC)
+			p.pose("run", 0.05)
+			p.aim("F", 2, 0.05)
+			_slide("s", x0 + 140, 0.07, Tween.TRANS_CUBIC)
 			await wait(0.05)
-			_arc(tgt + Vector2(-140, 40), 320, 115, -45, 40)
-			Fx.thrust(fxl, Vector2(x0, tgt.y), tgt + Vector2(160, 0), Color(1, 1, 1), 8)
+			_ink("thrust_streak", tgt + Vector2(-30, -10), 0, 1.05, true)
+			_ink("hit_spark_side", tgt + Vector2(40, -10), 0, 0.9)
+		"r_mook":
+			# 칼집에 넣은 채 멈췄다가, 뽑으며 상대를 지나친다
+			p.hold("F", "mook_katana", 115)
+			p.hold("B", "")
+			p.pose("stab_wind", 0.15)
+			await wait(0.3)
+			Sfx.play("swing")
+			p.pose("run", 0.05)
+			p.aim("F", -55, 0.07, Tween.TRANS_CUBIC)
+			_slide("s", pup["t"].position.x + 60, 0.09, Tween.TRANS_CUBIC)
+			await wait(0.05)
+			_ink("slash_curve", tgt + Vector2(-10, -20), 0, 1.2, true)
+			_ink("slash_low_l", tgt + Vector2(0, 40), 0, 1.1)
 		"r_logic":
-			p.show_img("logic_pistols")
-			await wait(0.1)
-			var mz: Vector2 = _body("s") + Vector2(150, -30)
+			p.hold("F", "logic_revolver", 0)
+			p.hold("B", "logic_revolver", 6)
+			var muzzle: Vector2 = _body("s") + Vector2(150, -18)
 			if dd["t"] == "blunt":
 				# 샷건
+				p.hold("F", "logic_shotgun", 0)
+				p.hold("B", "")
+				await wait(0.1)
 				Sfx.play("boom", -6)
 				Sfx.play("gun")
-				Fx.muzzle(fxl, mz, 1.6)
+				p.aim("F", -28, 0.04)
+				Fx.muzzle(fxl, muzzle + Vector2(20, 0), 1.6)
 				for j in 5:
-					Fx.thrust(fxl, mz, tgt + Vector2(0, -60 + j * 30), Color(1, 0.85, 0.5), 5)
+					Fx.thrust(fxl, muzzle, tgt + Vector2(0, -60 + j * 30), Color(1, 0.85, 0.5), 5)
 				_slide("s", x0 - 40, 0.1)
 				_shake(10, 0.15)
+				_ink("hit_burst_big", tgt, 0, 0.8)
 			else:
+				var h := "F" if k % 2 == 0 else "B"
+				await wait(0.08)
 				Sfx.play("gun")
-				Fx.muzzle(fxl, mz, 1.0)
-				Fx.thrust(fxl, mz, tgt + Vector2(0, randf_range(-20, 20)), Color(1, 0.9, 0.6), 6)
+				p.aim(h, -24, 0.03)
+				Fx.muzzle(fxl, muzzle, 1.0)
+				Fx.thrust(fxl, muzzle, tgt + Vector2(0, randf_range(-20, 20)), Color(1, 0.9, 0.6), 6)
+				_ink("hit_burst_small", tgt + Vector2(0, randf_range(-20, 20)), randf_range(0, 360), 0.6)
 			await wait(0.03)
+			p.aim("F", 0, 0.15)
+			p.aim("B", 6, 0.15)
 		"r_crystal":
-			# 상대를 꿰뚫고 뒤쪽까지 지나가며 베고, 돌아서서 다시 지나가며 벤다
+			# 쌍검으로 상대를 꿰뚫고 뒤쪽까지 지나가며 베고, 돌아서서 다시 지나가며 벤다
 			var tx: float = pup["t"].position.x
+			p.hold("F", "crystal_sword", 140)
+			p.hold("B", "crystal_sword", -140)
 			p.pose("run", 0.06)
 			await wait(0.08)
 			for pass_ in 2:
 				var dir := 1.0 if pass_ == 0 else -1.0
-				var to := tx + (130.0 if dir > 0 else -170.0)
 				p.face(dir)
-				p.show_img("crystal")
+				p.aim("F", 140, 0.01)
+				p.aim("B", -140, 0.01)
 				Sfx.play("swing")
-				_slide("s", to, 0.1, Tween.TRANS_CUBIC)
+				_slide("s", tx + (130.0 if dir > 0 else -170.0), 0.1, Tween.TRANS_CUBIC)
+				p.aim("F", -20, 0.08)
+				p.aim("B", 20, 0.08)
 				await wait(0.05)
-				var col := Color(1, 0.78, 0.92) if pass_ == 0 else Color(0.78, 0.95, 1)
-				for j in 3:
-					var y := tgt.y - 50 + j * 45
-					Fx.thrust(fxl, Vector2(tx - 260 * dir, y), Vector2(tx + 260 * dir, y + 8 * (j - 1)), Color(1, 1, 1) if j == 1 else col, 18 if j == 1 else 8)
-				_arc(tgt + Vector2(0, -420 * (1 if pass_ == 0 else -1)), 420, 70 if pass_ == 0 else -110, 110 if pass_ == 0 else -70, 22, col, 0.08)
-				Fx.burst(fxl, tgt, Color(1, 1, 1), 26, 700.0, 1.4)
+				_ink("slash_low_r" if dir > 0 else "slash_low_l", tgt + Vector2(0, -30), 0, 1.3)
+				_ink("slash_flat", tgt + Vector2(0, 20), 0, 1.2, dir > 0)
 				if pass_ == 0:
 					_flash("t", Color(1, 1, 1))
 					await wait(0.16)
 					p.pose("run", 0.05)
 					await wait(0.06)
+				else:
+					_ink("slash_cross", tgt, 0, 0.9)
 		"r_wheels":
-			p.show_img("wheels_swing")
-			await wait(0.22)
+			p.hold("F", "wheels_greatsword", 120)
+			p.hold("B", "")
+			p.pose("stab_wind", 0.18)
+			p.aim("F", -150, 0.22, Tween.TRANS_SINE)
+			await wait(0.24)
 			Sfx.play("swing")
-			p.show_img("wheels_smash")
+			p.pose("run", 0.06)
+			p.aim("F", 65, 0.08, Tween.TRANS_CUBIC)
 			_slide("s", x0 + 80, 0.09)
-			await wait(0.05)
-			_arc(tgt + Vector2(-120, -40), 260, -95, 60, 44)
+			await wait(0.06)
+			_ink("slash_curve", tgt + Vector2(-20, -40), 0, 1.4, true)
+			_ink("hit_burst_big", Vector2(tgt.x, GROUND - 60), 0, 1.2)
 			Fx.explosion(fxl, Vector2(tgt.x, GROUND - 10))
 			_shake(18, 0.3)
 		"r_ult":
-			# Furioso: 아홉 공방을 차례로 휘두른다
+			# Furioso: 아홉 공방의 무기를 차례로 바꿔 쥐며 휘두른다
 			Sfx.play("break", -6)
-			var seq := ["zelkova_axe", "ranga_claw", "wheels_swing", "thrust", "mook_thrust", "logic_pistols", "crystal", "slash", "wheels_smash"]
+			p.hold("B", "")
+			var seq := ["zelkova_axe", "ranga_gauntlet", "oldboys_hammer", "allas_spear", "mook_katana", "logic_revolver", "crystal_sword", "durandal_sword", "wheels_greatsword"]
+			var inks := ["slash_low_r", "thrust_streak", "hit_burst_big", "thrust_streak", "slash_curve", "hit_burst_small", "slash_cross", "slash_flat", "slash_up"]
 			for j in seq.size():
-				p.show_img(seq[j], false)
+				p.hold("F", seq[j], -140 if j % 2 == 0 else 120)
+				p.aim("F", 40 if j % 2 == 0 else -100, 0.05)
 				_slide("s", x0 + 40 + (j % 3) * 30, 0.05)
-				Sfx.play("gun" if seq[j] == "logic_pistols" else "swing", -4)
-				if seq[j] == "thrust":
-					Fx.thrust(fxl, _body("s") + Vector2(40, -20), tgt + Vector2(200, 0), Color(1, 1, 1), 18)
-				else:
-					var a0 := randf_range(-140, -40)
-					_arc(tgt + Vector2(randf_range(-60, 20), randf_range(-40, 40)), randf_range(150, 240), a0, a0 + 170 * (1 if j % 2 == 0 else -1), 22, Color(1, 1, 1), 0.07)
-				Fx.sparkle(fxl, tgt + Vector2(randf_range(-80, 80), randf_range(-100, 60)), 1.2)
+				Sfx.play("gun" if seq[j] == "logic_revolver" else "swing", -4)
+				_ink(inks[j], tgt + Vector2(randf_range(-40, 40), randf_range(-40, 30)), randf_range(-20, 20), 0.9, j % 2 == 1)
 				await wait(0.09)
-			_arc(tgt + Vector2(-100, 0), 300, -100, 100, 50)
+			_ink("slash_cross", tgt, 0, 1.3)
+			_ink("hit_burst_big", tgt, 0, 1.3)
 			_shake(20, 0.35)
 		_:
-			p.show_img("slash")
 			await wait(0.08)
