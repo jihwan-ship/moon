@@ -1489,9 +1489,12 @@ func _run_test() -> void:
 		test_mode = test_mode.substr(6) if test_mode.length() > 6 else "plan"
 	_new_game()
 	_start_turn()
-	if test_mode == "cards":
-		# 공방 책장을 하나씩 차례로 써 본다(짬타이거는 맞기만 한다)
-		for id_ in GameData.ROLAND_DECK + ["ult"]:
+	if test_mode.begins_with("cards"):
+		# 공방 책장을 하나씩 차례로 써 본다(짬타이거는 맞기만 한다). cards_<id>면 그 책장만 두 번
+		var ids: Array = GameData.ROLAND_DECK + ["ult"]
+		if test_mode.length() > 6:
+			ids = [test_mode.substr(6), test_mode.substr(6)]
+		for id_ in ids:
 			T["hp"] = 999
 			T["max_hp"] = 999
 			T["mental"] = 999
@@ -1550,7 +1553,7 @@ func _strike_roland(anim: String, side: Dictionary, dd: Dictionary) -> void:
 				_arc(tgt + Vector2(-60, 0), 230, -100, 100, 32)
 			else:
 				# 올려치기
-				p.show_img("move")
+				p.pose("run", 0.08)
 				await wait(0.1)
 				Sfx.play("swing")
 				p.show_img("slash")
@@ -1576,7 +1579,7 @@ func _strike_roland(anim: String, side: Dictionary, dd: Dictionary) -> void:
 				await wait(0.04)
 				_arc(tgt + Vector2(-30, 60), 200, 100, -60, 24)
 		"r_ranga":
-			p.show_img("move")
+			p.pose("run", 0.06)
 			await wait(0.07)
 			Sfx.play("swing", -2)
 			p.show_img("ranga_claw")
@@ -1594,7 +1597,7 @@ func _strike_roland(anim: String, side: Dictionary, dd: Dictionary) -> void:
 			_arc(tgt + Vector2(-80, -20), 200, -80, 70, 30, Color(1, 0.88, 0.7))
 			Fx.ring(fxl, tgt + Vector2(0, 80), Color(1, 0.85, 0.6), 20, 160, 0.3, 10)
 		"r_allas":
-			p.show_img("move")
+			p.pose("run", 0.08)
 			await wait(0.12)
 			Sfx.play("swing")
 			p.show_img("thrust")
@@ -1631,18 +1634,29 @@ func _strike_roland(anim: String, side: Dictionary, dd: Dictionary) -> void:
 				Fx.thrust(fxl, mz, tgt + Vector2(0, randf_range(-20, 20)), Color(1, 0.9, 0.6), 6)
 			await wait(0.03)
 		"r_crystal":
-			p.show_img("crystal")
-			var back: bool = k <= 1
-			_slide("s", x0 + (-50 if back else 80), 0.1)
-			Sfx.play("swing")
-			await wait(0.05)
-			_arc(tgt + Vector2(-60, 0), 170, -60, 70, 18, Color(1, 0.75, 0.9), 0.1)
-			await wait(0.1)
-			p.show_img("move", false)
-			Sfx.play("swing", -3)
-			_slide("s", x0 + (-100 if back else 150), 0.1)
-			_arc(tgt + Vector2(-50, 10), 160, 70, -55, 18, Color(0.75, 0.95, 1), 0.1)
-			await wait(0.04)
+			# 상대를 꿰뚫고 뒤쪽까지 지나가며 베고, 돌아서서 다시 지나가며 벤다
+			var tx: float = pup["t"].position.x
+			p.pose("run", 0.06)
+			await wait(0.08)
+			for pass_ in 2:
+				var dir := 1.0 if pass_ == 0 else -1.0
+				var to := tx + (130.0 if dir > 0 else -170.0)
+				p.face(dir)
+				p.show_img("crystal")
+				Sfx.play("swing")
+				_slide("s", to, 0.1, Tween.TRANS_CUBIC)
+				await wait(0.05)
+				var col := Color(1, 0.78, 0.92) if pass_ == 0 else Color(0.78, 0.95, 1)
+				for j in 3:
+					var y := tgt.y - 50 + j * 45
+					Fx.thrust(fxl, Vector2(tx - 260 * dir, y), Vector2(tx + 260 * dir, y + 8 * (j - 1)), Color(1, 1, 1) if j == 1 else col, 18 if j == 1 else 8)
+				_arc(tgt + Vector2(0, -420 * (1 if pass_ == 0 else -1)), 420, 70 if pass_ == 0 else -110, 110 if pass_ == 0 else -70, 22, col, 0.08)
+				Fx.burst(fxl, tgt, Color(1, 1, 1), 26, 700.0, 1.4)
+				if pass_ == 0:
+					_flash("t", Color(1, 1, 1))
+					await wait(0.16)
+					p.pose("run", 0.05)
+					await wait(0.06)
 		"r_wheels":
 			p.show_img("wheels_swing")
 			await wait(0.22)
