@@ -13,6 +13,10 @@ const RIGS := {
 	"t": {"thigh": 52, "shin": 44, "upper": 40, "fore": 34, "hip_y": 108, "hipF": 12, "hipB": -12,
 		"neck": Vector2(0, -98), "shF": Vector2(16, -86), "shB": Vector2(-14, -88), "hand": "t_paw", "boot": "t_boot", "head_scale": 0.74,
 		"tail": Vector2(-38, -12)},
+	# 쫄라맨 정시우: 직접 그린 머리에 선으로 된 몸
+	"k": {"thigh": 50, "shin": 46, "upper": 36, "fore": 32, "hip_y": 100, "hipF": 2, "hipB": -2,
+		"neck": Vector2(0, -96), "shF": Vector2(2, -82), "shB": Vector2(-2, -82), "hand": "k_hand", "boot": "k_boot",
+		"tail": null},
 }
 
 static var _meta: Dictionary = {}
@@ -32,6 +36,8 @@ var _tween: Tween
 var face_name := ""
 var prop_name := ""
 var prop_hand := "F"
+var prop2_spr: Sprite2D          # 뒷손에 드는 두 번째 무기(쌍권총 등)
+var prop2_name := ""
 
 
 static func load_meta() -> void:
@@ -108,6 +114,10 @@ func setup(kind_: String) -> void:
 	prop_spr.centered = false
 	prop_spr.z_index = -1
 	hf.add_child(prop_spr)
+	prop2_spr = Sprite2D.new()
+	prop2_spr.centered = false
+	prop2_spr.z_index = -2
+	hb.add_child(prop2_spr)
 	set_face("normal")
 	set_pose(Poses.get_pose(kind, "idle"))
 
@@ -149,6 +159,29 @@ func set_prop(p: String, hand := "F") -> void:
 	prop_spr.z_index = 3 if hand == "F" else -2
 
 
+func set_prop2(p: String) -> void:
+	if p == prop2_name:
+		return
+	prop2_name = p
+	if p == "":
+		prop2_spr.texture = null
+		return
+	prop2_spr.texture = load("res://art/parts/%s.png" % p)
+	var m: Dictionary = _meta[p]
+	prop2_spr.offset = Vector2(m["ox"], m["oy"]) * _scale
+	prop2_spr.scale = Vector2.ONE / _scale
+	prop2_spr.position = Vector2(0, 10)
+
+
+## 무기 끝(총구)의 전역 위치. which는 "F"(앞손) 또는 "B"(뒷손 두 번째 무기)
+func prop_tip(which := "F") -> Vector2:
+	var spr: Sprite2D = prop_spr if which == "F" else prop2_spr
+	if spr.texture == null:
+		return global_position
+	var t := spr.texture.get_size()
+	return spr.global_transform * (spr.offset + Vector2(t.x, t.y * 0.2))
+
+
 ## 포즈 값 하나를 노드에 반영한다
 func _apply(k: String, v) -> void:
 	cur[k] = v
@@ -159,6 +192,8 @@ func _apply(k: String, v) -> void:
 			hip.position.y = -RIGS[kind]["hip_y"] + v
 		"prop_rot":
 			prop_spr.rotation_degrees = v
+		"prop2_rot":
+			prop2_spr.rotation_degrees = v
 		_:
 			if j.has(k):
 				j[k].rotation_degrees = v
@@ -179,6 +214,8 @@ func set_pose(p: Dictionary) -> void:
 			set_face(p[k])
 		elif k == "prop":
 			set_prop(p[k], p.get("prop_hand", "F"))
+		elif k == "prop2":
+			set_prop2(p[k])
 		elif k == "prop_hand":
 			pass
 		else:
@@ -193,9 +230,11 @@ func tween_pose(p: Dictionary, dur := 0.18, trans := Tween.TRANS_QUAD, ease := T
 		set_face(p["face"])
 	if p.has("prop"):
 		set_prop(p["prop"], p.get("prop_hand", "F"))
+	if p.has("prop2"):
+		set_prop2(p["prop2"])
 	_tween = create_tween().set_parallel(true).set_trans(trans).set_ease(ease)
 	for k in p:
-		if k in ["face", "prop", "prop_hand"]:
+		if k in ["face", "prop", "prop_hand", "prop2"]:
 			continue
 		var from: float = cur.get(k, 0.0)
 		var to := float(p[k])

@@ -96,20 +96,21 @@ func _build_world() -> void:
 		sh.z_index = 5
 		world.add_child(sh)
 		shadow[who] = sh
-		_make_puppet(who, false)
+		_make_puppet(who, "")
 	fxl = Node2D.new()
 	fxl.z_index = 30
 	world.add_child(fxl)
 
 
-## 캐릭터를 만든다. 롤랑 모드면 신병 대신 롤랑 자세 그림을 쓴다
-func _make_puppet(who: String, roland: bool) -> void:
+## 캐릭터를 만든다. look: "" = 기본, "roland" = 롤랑 자세 그림, "k" = 쫄라맨 정시우
+func _make_puppet(who: String, look: String) -> void:
 	if pup.has(who):
 		pup[who].queue_free()
+	var roland := look == "roland"
 	var p: Node2D = SpritePuppet.new() if roland else Puppet.new()
 	p.z_index = 10
 	world.add_child(p)
-	p.setup(who)
+	p.setup("k" if look == "k" else who)
 	p.position = Vector2(HOME[who], GROUND)
 	if roland:
 		p.scale = Vector2.ONE
@@ -464,14 +465,14 @@ func _title() -> void:
 	sub.size = Vector2(1280, 40)
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	overlay.add_child(sub)
-	var roland_ok := SpritePuppet.available()
-	var b := _button("작전 개시", Vector2(540 - (120 if roland_ok else 0), 420))
-	overlay.add_child(b)
-	b.pressed.connect(func(): mode_chosen.emit("soldier"))
-	if roland_ok:
-		var rb := _button("롤랑 모드", Vector2(660, 420))
-		overlay.add_child(rb)
-		rb.pressed.connect(func(): mode_chosen.emit("roland"))
+	var modes := [["작전 개시", "soldier"], ["정시우 모드", "sium"]]
+	if SpritePuppet.available():
+		modes.append(["롤랑 모드", "roland"])
+	for i in modes.size():
+		var mb := _button(modes[i][0], Vector2(640 - modes.size() * 110 + i * 220 + 10, 420))
+		overlay.add_child(mb)
+		var m: String = modes[i][1]
+		mb.pressed.connect(func(): mode_chosen.emit(m))
 	var tw := create_tween().set_loops()
 	tw.tween_property(t, "position:y", 140.0, 1.2).set_trans(Tween.TRANS_SINE)
 	tw.tween_property(t, "position:y", 150.0, 1.2).set_trans(Tween.TRANS_SINE)
@@ -488,7 +489,7 @@ func _title() -> void:
 
 func _set_mode(mode: String) -> void:
 	Cfg.mode = mode
-	_make_puppet("s", mode == "roland")
+	_make_puppet("s", {"roland": "roland", "sium": "k"}.get(mode, ""))
 	(hud["s_name"] as Label).text = Cfg.player_title()
 
 
@@ -539,7 +540,7 @@ func _new_game() -> void:
 	var pl: Dictionary = GameData.PLAYER
 	P = {"hp": pl["hp"], "max_hp": pl["hp"], "mental": pl["mental"], "max_mental": pl["mental"], "broken": false, "skip": false,
 		"energy": pl["energy"], "max_energy": pl["energy"], "status": {}, "pending": {}, "focus": 0}
-	var roland := Cfg.mode == "roland"
+	var roland := Cfg.mode in ["roland", "sium"]
 	cards = GameData.roland_cards() if roland else GameData.player_cards()
 	if roland:
 		P["energy"] = 4
@@ -1170,7 +1171,14 @@ func _win_focus(side: Dictionary, n: int) -> void:
 func _strike(who: String, side: Dictionary, dd: Dictionary) -> void:
 	var p = pup[who]
 	var anim: String = side["def"].get("anim", "")
-	if anim.begins_with("r_") and who == "s":
+	if anim.begins_with("r_") and who == "s" and Cfg.mode == "sium":
+		if anim == "r_logic":
+			if not _side(who)["broken"]:
+				await _strike_stick_logic(side, dd)
+			return
+		# 아직 정시우용 동작이 없는 공방은 기본 동작으로
+		anim = "stab" if dd["t"] == "pierce" else "butt"
+	elif anim.begins_with("r_") and who == "s":
 		if not _side(who)["broken"]:
 			await _strike_roland(anim, side, dd)
 		return
@@ -1408,7 +1416,7 @@ func _tiger_down() -> void:
 	P["mental"] = P["max_mental"]
 	P["broken"] = false
 	if phase >= 2:
-		P["max_energy"] = 5 if Cfg.mode == "roland" else 4
+		P["max_energy"] = 5 if Cfg.mode in ["roland", "sium"] else 4
 	_refresh_hud()
 	Sfx.play("fanfare")
 	var t := _label("%s 진급!" % GameData.PHASES[phase]["rank"], 96, Color("e8913c"), ft, 16)
@@ -1484,9 +1492,10 @@ func _defeat() -> void:
 
 ## test=플랜: 배치 화면 / test=fight: 자동으로 몇 턴 진행
 func _run_test() -> void:
-	if test_mode.begins_with("roland"):
-		_set_mode("roland")
-		test_mode = test_mode.substr(6) if test_mode.length() > 6 else "plan"
+	for m in ["roland", "sium"]:
+		if test_mode.begins_with(m):
+			_set_mode(m)
+			test_mode = test_mode.substr(m.length()) if test_mode.length() > m.length() else "plan"
 	_new_game()
 	_start_turn()
 	if test_mode.begins_with("cards"):
@@ -1761,3 +1770,80 @@ func _strike_roland(anim: String, side: Dictionary, dd: Dictionary) -> void:
 			_shake(20, 0.35)
 		_:
 			await wait(0.08)
+
+
+# ---------------------------------------------------------------- 정시우 모드(쫄라맨) 공격
+
+## 총구 이펙트: 섬광, 총구 앞에 세로로 선 충격파 고리, 연기
+func _gun_fx(muzzle: Vector2, big: bool) -> void:
+	Fx.muzzle(fxl, muzzle, 1.6 if big else 1.0)
+	for k in (3 if big else 2):
+		var l := Line2D.new()
+		l.width = 4.0 if big else 3.0
+		l.default_color = Color(1, 1, 1, 0.9)
+		l.closed = true
+		l.position = muzzle + Vector2(30 + k * 34, 0)
+		l.z_index = 42
+		fxl.add_child(l)
+		# 크기를 키우면 선 굵기도 같이 커지므로, 점 위치를 다시 계산해서 넓힌다
+		var set_r := func(r: float) -> void:
+			var pts := PackedVector2Array()
+			for i in 28:
+				var a := TAU * i / 28.0
+				pts.append(Vector2(cos(a) * 0.3, sin(a)) * r)
+			l.points = pts
+		set_r.call(8.0)
+		var r := (70.0 if big else 46.0) * (1.0 - k * 0.22)
+		var tw := l.create_tween().set_parallel(true)
+		tw.tween_method(set_r, 8.0, r, 0.18 + k * 0.04).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_property(l, "modulate:a", 0.0, 0.32 + k * 0.05)
+		tw.chain().tween_callback(l.queue_free)
+	for k in (6 if big else 3):
+		var c := Polygon2D.new()
+		var pts := PackedVector2Array()
+		for i in 12:
+			var a := TAU * i / 12.0
+			pts.append(Vector2(cos(a), sin(a)) * randf_range(8, 14))
+		c.polygon = pts
+		c.color = Color(0.85, 0.85, 0.85, 0.7)
+		c.position = muzzle + Vector2(randf_range(10, 60), randf_range(-10, 10))
+		c.z_index = 39
+		fxl.add_child(c)
+		var tw := c.create_tween().set_parallel(true)
+		tw.tween_property(c, "position", c.position + Vector2(randf_range(10, 50), randf_range(-60, -20)), 0.6)
+		tw.tween_property(c, "scale", Vector2.ONE * randf_range(1.8, 2.6), 0.6)
+		tw.tween_property(c, "modulate:a", 0.0, 0.6)
+		tw.chain().tween_callback(c.queue_free)
+	Fx.burst(fxl, muzzle + Vector2(20, 0), Color(1, 0.95, 0.8), 14 if big else 8, 700.0, 0.8)
+
+
+## 로직 아틀리에: 권총 두 발(앞손, 뒷손 번갈아), 마지막은 샷건
+func _strike_stick_logic(side: Dictionary, dd: Dictionary) -> void:
+	var p: Puppet = pup["s"]
+	var tgt := _body("t")
+	if dd["t"] == "blunt":
+		# 샷건: 앞으로 숙이며 겨눴다가, 쏘는 순간 반동으로 뒤로 밀린다
+		p.pose("shotgun_ready", 0.16, Tween.TRANS_BACK)
+		await wait(0.2)
+		Sfx.play("boom", -6)
+		Sfx.play("gun")
+		var mz := p.prop_tip("F")
+		_gun_fx(mz, true)
+		for j in 5:
+			Fx.thrust(fxl, mz, tgt + Vector2(0, -60 + j * 30), Color(1, 0.9, 0.6), 5)
+		p.pose("shotgun_fire", 0.05, Tween.TRANS_QUAD)
+		_slide("s", p.position.x - 40, 0.12)
+		_shake(12, 0.18)
+		await wait(0.04)
+		p.pose("shotgun_ready", 0.3, Tween.TRANS_SINE)
+		return
+	var first: bool = (side["q"] as Array).find(dd) % 2 == 0
+	p.pose("pistol_ready" if first else "pistol_ready2", 0.12, Tween.TRANS_BACK)
+	await wait(0.14)
+	Sfx.play("gun")
+	var mz := p.prop_tip("F" if first else "B")
+	_gun_fx(mz, false)
+	Fx.thrust(fxl, mz, tgt + Vector2(0, randf_range(-20, 20)), Color(1, 0.92, 0.65), 6)
+	p.pose("pistol_fire1" if first else "pistol_fire2", 0.04)
+	await wait(0.04)
+	p.pose("pistol_ready" if first else "pistol_ready2", 0.22, Tween.TRANS_SINE)

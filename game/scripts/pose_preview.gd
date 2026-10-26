@@ -8,14 +8,14 @@ func _ready() -> void:
 		if a.begins_with("kind="):
 			kind = a.substr(5)
 	var names := Poses.names(kind)
-	var cols := 6 if kind == "s" else 4
+	var cols := 4 if kind == "t" else 6
 	for i in names.size():
 		var p := Puppet.new()
 		add_child(p)
 		p.setup(kind)
 		p.set_pose(Poses.get_pose(kind, names[i]))
-		var sc := 0.95 if kind == "s" else 0.62
-		p.position = Vector2(110 + (i % cols) * (1240.0 / cols), (330 if kind == "s" else 230) + (i / cols) * (360 if kind == "s" else 240))
+		var sc := 0.62 if kind == "t" else 0.95
+		p.position = Vector2(110 + (i % cols) * (1240.0 / cols), (230 if kind == "t" else 330) + (i / cols) * (240 if kind == "t" else 360))
 		p.scale = Vector2(sc, sc)
 		if kind == "t":
 			p.set_rank(i % 4 + 1)

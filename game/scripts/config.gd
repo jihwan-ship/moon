@@ -5,16 +5,16 @@ const PLAYER_NAME := "김신병"
 const ENDING_MESSAGE := "군 생활 건강하게!\n짬타이거가 지켜보고 있다냥."
 
 
-# "soldier" = 이병 김신병, "roland" = 롤랑 모드
+# "soldier" = 이병 김신병, "roland" = 롤랑 모드, "sium" = 쫄라맨 정시우가 롤랑 책장을 쓰는 모드
 var mode := "soldier"
 
 
 func player_name() -> String:
-	return "롤랑" if mode == "roland" else PLAYER_NAME
+	return {"roland": "롤랑", "sium": "정시우"}.get(mode, PLAYER_NAME)
 
 
 func player_title() -> String:
-	return "검은 침묵 롤랑" if mode == "roland" else "이병 " + PLAYER_NAME
+	return {"roland": "검은 침묵 롤랑", "sium": "검은 침묵 정시우"}.get(mode, "이병 " + PLAYER_NAME)
 
 
 func fmt(s: String) -> String:
