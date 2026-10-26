@@ -55,7 +55,9 @@ static func roland_cards() -> Dictionary:
 	}
 	for k in c:
 		c[k]["anim"] = "r_" + k
-		c[k]["art"] = "res://art/roland/cards/%s.png" % ("furioso" if k == "ult" else k)
+		# 정시우 모드는 대충 그린 낙서 그림, 롤랑 모드는 원작 그림
+		var dir := "sium" if Cfg.mode == "sium" else "roland"
+		c[k]["art"] = "res://art/%s/cards/%s.png" % [dir, "furioso" if k == "ult" else k]
 	return c
 
 const ROLAND_DECK := ["zelkova", "ranga", "oldboys", "allas", "mook", "logic", "durandal", "crystal", "wheels"]

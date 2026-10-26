@@ -107,12 +107,13 @@ func _make_puppet(who: String, look: String) -> void:
 	if pup.has(who):
 		pup[who].queue_free()
 	var roland := look == "roland"
-	var p: Node2D = SpritePuppet.new() if roland else Puppet.new()
+	var whole := roland or look == "thumb"
+	var p: Node2D = SpritePuppet.new() if roland else (ThumbPuppet.new() if look == "thumb" else Puppet.new())
 	p.z_index = 10
 	world.add_child(p)
 	p.setup("k" if look == "k" else who)
 	p.position = Vector2(HOME[who], GROUND)
-	if roland:
+	if whole:
 		p.scale = Vector2.ONE
 	else:
 		p.scale = Vector2(SCALE[who] * (1 if who == "s" else -1), SCALE[who])
@@ -490,6 +491,10 @@ func _title() -> void:
 func _set_mode(mode: String) -> void:
 	Cfg.mode = mode
 	_make_puppet("s", {"roland": "roland", "sium": "k"}.get(mode, ""))
+	# 정시우 모드의 짬타이거는 엄지척 아재
+	var thumb: bool = mode == "sium"
+	if thumb != (pup["t"] is ThumbPuppet):
+		_make_puppet("t", "thumb" if thumb else "")
 	(hud["s_name"] as Label).text = Cfg.player_title()
 
 
@@ -549,6 +554,7 @@ func _new_game() -> void:
 	deck.shuffle()
 	discard = []
 	hand = []
+	slots = []
 	phase = 0
 	turn_no = 0
 	_setup_tiger()
@@ -586,8 +592,12 @@ func _start_turn() -> void:
 	P["skip"] = P["broken"]
 	T["skip"] = T["broken"]
 	P["energy"] = maxi(0, P["max_energy"] - (1 if P["status"].has("pushup") else 0))
-	discard.append_array(hand)
+	# 손에 남은 책장과 지난 합에 쓴 책장은 모두 버림 더미로 돌아간다(필살기는 따로)
+	for id_ in hand + slots:
+		if id_ != "" and id_ != "ult":
+			discard.append(id_)
 	hand = []
+	slots = []
 	_draw_cards(GameData.PLAYER["hand"])
 	if P["focus"] >= GameData.PLAYER["focus_max"] and not hand.has("ult"):
 		hand.append("ult")
@@ -1776,45 +1786,48 @@ func _strike_roland(anim: String, side: Dictionary, dd: Dictionary) -> void:
 
 ## 총구 이펙트: 섬광, 총구 앞에 세로로 선 충격파 고리, 연기
 func _gun_fx(muzzle: Vector2, big: bool) -> void:
-	Fx.muzzle(fxl, muzzle, 1.6 if big else 1.0)
-	for k in (3 if big else 2):
-		var l := Line2D.new()
-		l.width = 4.0 if big else 3.0
-		l.default_color = Color(1, 1, 1, 0.9)
-		l.closed = true
-		l.position = muzzle + Vector2(30 + k * 34, 0)
-		l.z_index = 42
-		fxl.add_child(l)
-		# 크기를 키우면 선 굵기도 같이 커지므로, 점 위치를 다시 계산해서 넓힌다
-		var set_r := func(r: float) -> void:
-			var pts := PackedVector2Array()
-			for i in 28:
-				var a := TAU * i / 28.0
-				pts.append(Vector2(cos(a) * 0.3, sin(a)) * r)
-			l.points = pts
-		set_r.call(8.0)
-		var r := (70.0 if big else 46.0) * (1.0 - k * 0.22)
-		var tw := l.create_tween().set_parallel(true)
-		tw.tween_method(set_r, 8.0, r, 0.18 + k * 0.04).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tw.tween_property(l, "modulate:a", 0.0, 0.32 + k * 0.05)
-		tw.chain().tween_callback(l.queue_free)
-	for k in (6 if big else 3):
-		var c := Polygon2D.new()
+	# 직접 그린 총구 이펙트(고리 + 앞으로 뻗는 줄). 고리가 총구에 오게 놓는다
+	var sc := 1.4 if big else 0.85
+	var e := Sprite2D.new()
+	e.texture = load("res://art/sium/gunfx.png")
+	e.centered = false
+	e.offset = Vector2(-34, -e.texture.get_height() * 0.5)
+	e.position = muzzle
+	e.rotation_degrees = randf_range(-4, 4)
+	e.scale = Vector2(0.4, 0.7) * sc
+	e.z_index = 42
+	fxl.add_child(e)
+	var tw := e.create_tween()
+	tw.tween_property(e, "scale", Vector2(1.1, 1.05) * sc, 0.05).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(e, "scale", Vector2.ONE * sc, 0.05)
+	tw.tween_interval(0.06)
+	tw.set_parallel(true)
+	tw.tween_property(e, "modulate:a", 0.0, 0.18)
+	tw.tween_property(e, "position:x", muzzle.x + 30 * sc, 0.18)
+	tw.chain().tween_callback(e.queue_free)
+	# 원작처럼 연기가 위로 말려 올라간다. 대충 그린 듯한 삐뚤빼뚤한 동그라미로
+	for k in (4 if big else 2):
+		var c := Line2D.new()
+		c.width = 3.0
+		c.default_color = Color(0.12, 0.11, 0.1)
+		c.closed = true
 		var pts := PackedVector2Array()
-		for i in 12:
-			var a := TAU * i / 12.0
-			pts.append(Vector2(cos(a), sin(a)) * randf_range(8, 14))
-		c.polygon = pts
-		c.color = Color(0.85, 0.85, 0.85, 0.7)
-		c.position = muzzle + Vector2(randf_range(10, 60), randf_range(-10, 10))
-		c.z_index = 39
+		var r := randf_range(9, 14) * sc
+		for i in 10:
+			var ang := TAU * i / 10.0
+			pts.append(Vector2(cos(ang), sin(ang)) * r * randf_range(0.8, 1.2))
+		c.points = pts
+		c.position = muzzle + Vector2(randf_range(10, 40) * sc, randf_range(-8, 4))
+		c.z_index = 41
 		fxl.add_child(c)
-		var tw := c.create_tween().set_parallel(true)
-		tw.tween_property(c, "position", c.position + Vector2(randf_range(10, 50), randf_range(-60, -20)), 0.6)
-		tw.tween_property(c, "scale", Vector2.ONE * randf_range(1.8, 2.6), 0.6)
-		tw.tween_property(c, "modulate:a", 0.0, 0.6)
-		tw.chain().tween_callback(c.queue_free)
-	Fx.burst(fxl, muzzle + Vector2(20, 0), Color(1, 0.95, 0.8), 14 if big else 8, 700.0, 0.8)
+		var st := c.create_tween().set_parallel(true)
+		var d := randf_range(0.5, 0.7)
+		st.tween_property(c, "position", c.position + Vector2(randf_range(20, 60), randf_range(-80, -40)) * sc, d) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		st.tween_property(c, "rotation", randf_range(-1.5, 1.5), d)
+		st.tween_property(c, "scale", Vector2.ONE * randf_range(1.4, 2.0), d)
+		st.tween_property(c, "modulate:a", 0.0, d).set_delay(0.1)
+		st.chain().tween_callback(c.queue_free)
 
 
 ## 로직 아틀리에: 권총 두 발(앞손, 뒷손 번갈아), 마지막은 샷건
