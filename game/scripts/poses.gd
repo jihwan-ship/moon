@@ -83,22 +83,25 @@ const T := {
 # 쫄라맨 정시우. 없는 자세는 신병(S) 자세를 빌리고, 신병 소품은 뺀다
 const K := {
 	"idle": {"lean": 0, "head": 0, "thighF": -18, "shinF": 0, "thighB": 18, "shinB": 0,
-		"upperF": -38, "foreF": 0, "upperB": 38, "foreB": 0, "prop": "", "prop2": ""},
-	# 로직 아틀리에: 앞손 권총을 쭉 뻗고, 뒷손 권총은 아래로
+		"upperF": -38, "foreF": 0, "upperB": 38, "foreB": 0, "prop": "", "prop2": "", "zB": -6},
+	# 로직 아틀리에 첫 발: 몸을 옆으로 돌려 앞손 권총 한 자루만 쭉 뻗는다(뒷손 권총은 몸 뒤에 숨어 안 보인다)
 	"pistol_ready": {"lean": -2, "head": 2, "thighF": -22, "shinF": 6, "thighB": 18, "shinB": 4,
-		"upperF": -90, "foreF": 0, "upperB": 20, "foreB": 0, "prop": "k_pistol", "prop_rot": 90, "prop2": "k_pistol", "prop2_rot": 35},
+		"upperF": -90, "foreF": 0, "upperB": 8, "foreB": 0, "prop": "k_pistol", "prop_rot": 90, "prop2": ""},
 	"pistol_fire1": {"lean": -8, "head": 6, "thighF": -22, "shinF": 6, "thighB": 18, "shinB": 4, "hip_dx": -6,
-		"upperF": -112, "foreF": -6, "upperB": 24, "foreB": 0, "prop": "k_pistol", "prop_rot": 92, "prop2": "k_pistol", "prop2_rot": 35},
-	# 두 번째 발: 앞손은 내리고 뒷손 권총을 들어 쏜다
-	"pistol_ready2": {"lean": 0, "head": 0, "thighF": -20, "shinF": 6, "thighB": 20, "shinB": 4,
-		"upperF": 25, "foreF": 0, "upperB": -88, "foreB": 0, "prop": "k_pistol", "prop_rot": 30, "prop2": "k_pistol", "prop2_rot": 88},
-	"pistol_fire2": {"lean": -8, "head": 6, "thighF": -20, "shinF": 6, "thighB": 20, "shinB": 4, "hip_dx": -6,
-		"upperF": 28, "foreF": 0, "upperB": -110, "foreB": -6, "prop": "k_pistol", "prop_rot": 30, "prop2": "k_pistol", "prop2_rot": 90},
+		"upperF": -104, "foreF": -4, "upperB": 12, "foreB": 0, "prop": "k_pistol", "prop_rot": 92, "prop2": ""},
+	# 두 번째 발: 몸을 앞으로 돌려 두 자루가 다 보인다. 앞손으로 쏘고 뒷손 권총은 아래로 비스듬히
+	"pistol_ready2": {"lean": 0, "head": 0, "thighF": -16, "shinF": 4, "thighB": 16, "shinB": 4,
+		"upperF": -90, "foreF": 0, "upperB": 22, "foreB": -40, "prop": "k_pistol", "prop_rot": 90, "prop2": "k_pistol", "prop2_rot": 55},
+	"pistol_fire2": {"lean": -8, "head": 6, "thighF": -16, "shinF": 4, "thighB": 16, "shinB": 4, "hip_dx": -6,
+		"upperF": -104, "foreF": -4, "upperB": 26, "foreB": -40, "prop": "k_pistol", "prop_rot": 92, "prop2": "k_pistol", "prop2_rot": 55},
 	# 샷건: 앞으로 숙이고 다리를 벌려 버티며 양손으로 쏜다
 	"shotgun_ready": {"lean": 16, "head": -10, "thighF": -52, "shinF": 42, "thighB": 46, "shinB": 6, "hip_dy": 12,
 		"upperF": -78, "foreF": -10, "upperB": -64, "foreB": -24, "prop": "k_shotgun", "prop_rot": 88, "prop2": ""},
 	"shotgun_fire": {"lean": 2, "head": 4, "thighF": -48, "shinF": 36, "thighB": 50, "shinB": 4, "hip_dy": 10, "hip_dx": -18,
 		"upperF": -96, "foreF": -10, "upperB": -82, "foreB": -24, "prop": "k_shotgun", "prop_rot": 94, "prop2": ""},
+	# 합에서 지고 맞을 때: 웅크리고 두 팔을 얼굴 앞에 엇갈려 막는다
+	"hurt": {"lean": 6, "head": 6, "thighF": -30, "shinF": 30, "thighB": 26, "shinB": 14, "hip_dy": 10, "hip_dx": -10,
+		"upperF": -100, "foreF": -84, "upperB": -165, "foreB": 70, "prop": "", "prop2": "", "zB": 6},
 }
 
 

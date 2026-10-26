@@ -218,6 +218,8 @@ func set_pose(p: Dictionary) -> void:
 			set_prop2(p[k])
 		elif k == "prop_hand":
 			pass
+		elif k == "zB":
+			j["upperB"].z_index = int(p[k])
 		else:
 			_apply(k, float(p[k]))
 
@@ -232,9 +234,11 @@ func tween_pose(p: Dictionary, dur := 0.18, trans := Tween.TRANS_QUAD, ease := T
 		set_prop(p["prop"], p.get("prop_hand", "F"))
 	if p.has("prop2"):
 		set_prop2(p["prop2"])
+	if p.has("zB"):
+		j["upperB"].z_index = int(p["zB"])
 	_tween = create_tween().set_parallel(true).set_trans(trans).set_ease(ease)
 	for k in p:
-		if k in ["face", "prop", "prop_hand", "prop2"]:
+		if k in ["face", "prop", "prop_hand", "prop2", "zB"]:
 			continue
 		var from: float = cur.get(k, 0.0)
 		var to := float(p[k])

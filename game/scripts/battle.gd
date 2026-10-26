@@ -1854,7 +1854,7 @@ func _strike_stick_logic(side: Dictionary, dd: Dictionary) -> void:
 	p.pose("pistol_ready" if first else "pistol_ready2", 0.12, Tween.TRANS_BACK)
 	await wait(0.14)
 	Sfx.play("gun")
-	var mz := p.prop_tip("F" if first else "B")
+	var mz := p.prop_tip("F")
 	_gun_fx(mz, false)
 	Fx.thrust(fxl, mz, tgt + Vector2(0, randf_range(-20, 20)), Color(1, 0.92, 0.65), 6)
 	p.pose("pistol_fire1" if first else "pistol_fire2", 0.04)
