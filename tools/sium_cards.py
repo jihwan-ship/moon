@@ -122,13 +122,24 @@ p.line((120, 105), (135, 135), w=6)
 spark(p, 270, 40, n=6, r=24)
 p.save('mook')
 
-# 로직: 정시우가 그린 권총 + 샷건
-p = Pen()
-paste(p, 'art_src/sium/pistol.png', (15, 20, 135, 110), flip=True)
-paste(p, 'art_src/sium/shotgun.png', (60, 110, 290, 200), flip=True)
-p.line((150, 60), (200, 50), w=3)
-p.line((150, 72), (210, 72), w=3)
-p.save('logic')
+# 로직: 직접 그린 책장 그림(정시우가 샷건 쏘는 장면). 작게 줄어도 보이게 선을 굵게 한다
+def user_card(src, name):
+    from scipy import ndimage
+    im = Image.open(src).convert('RGBA')
+    bg = Image.new('RGBA', im.size, (255, 255, 255, 255))
+    bg.alpha_composite(im)
+    dark = np.array(bg.convert('L')) < 128
+    ys, xs = np.where(dark)
+    m = 14
+    box = (max(xs.min() - m, 0), max(ys.min() - m, 0), min(xs.max() + m, im.width), min(ys.max() + m, im.height))
+    line = ndimage.binary_dilation(dark, iterations=2)[box[1]:box[3], box[0]:box[2]]
+    out = np.zeros(line.shape + (4,), np.uint8)
+    out[...] = (250, 248, 240, 255)
+    out[line] = INK + (255,)
+    Image.fromarray(out, 'RGBA').save(OUT + name + '.png')
+
+
+user_card('art_src/sium/card_logic.png', 'logic')
 
 # 뒤랑달: 큰 검 한 자루와 휙 선
 p = Pen()
