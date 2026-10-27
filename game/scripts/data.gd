@@ -47,7 +47,7 @@ static func sium_cards() -> Dictionary:
 		"oldboys": {"name": "늙은소년 공방", "cost": 1, "dice": [d("block", 5, 9), d("blunt", 4, 8)], "block_energy": 1, "desc": "막아 내고 망치로 내리친다. 막으면 기력 1."},
 		"allas": {"name": "알라스 공방", "cost": 2, "dice": [d("pierce", 4, 8), d("pierce", 5, 9)], "desc": "창을 내지르며 꿰뚫는다."},
 		"mook": {"name": "묵 공방", "cost": 2, "dice": [d("slash", 6, 12)], "desc": "칼을 뽑으며 단번에 벤다."},
-		"logic": {"name": "로직 아틀리에", "cost": 2, "dice": [d("pierce", 4, 8), d("pierce", 5, 8), d("blunt", 7, 12)], "desc": "리볼버 두 발, 마지막은 샷건."},
+		"logic": {"name": "로직 아틀리에", "cost": 2, "dice": [d("pierce", 4, 8), d("pierce", 5, 8), d("blunt", 7, 12)], "rapid": true, "desc": "리볼버 두 발, 마지막은 샷건."},
 		"durandal": {"name": "뒤랑달", "cost": 2, "dice": [d("slash", 5, 9), d("slash", 5, 9)], "desc": "횡베기 후 올려친다."},
 		"crystal": {"name": "크리스탈 아틀리에", "cost": 3, "dice": [d("evade", 4, 8), d("slash", 5, 9), d("slash", 5, 9)], "desc": "물러서며 베고, 파고들며 벤다."},
 		"wheels": {"name": "휠즈 인더스트리", "cost": 3, "dice": [d("blunt", 10, 18)], "mental_bonus": 4, "desc": "대검을 크게 내리친다."},

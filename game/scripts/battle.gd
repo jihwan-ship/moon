@@ -1043,7 +1043,7 @@ func _pair(A: Dictionary, B: Dictionary) -> void:
 	banner_s.set_value(va, da["t"])
 	banner_t.set_value(vb, db["t"])
 	Sfx.play("card", -6)
-	await wait(0.32)
+	await wait(0.1 if _rapid(A) else 0.32)
 	var use_a := true
 	var use_b := true
 	var ka := _is_atk(da)
@@ -1090,10 +1090,23 @@ func _pair(A: Dictionary, B: Dictionary) -> void:
 	banner_t.spent = B["i"]
 	banner_s.queue_redraw()
 	banner_t.queue_redraw()
-	await _reset_pair()
+	await _reset_pair(_rapid(A) and A["i"] < A["q"].size())
 
 
-func _reset_pair() -> void:
+## 연사하는 책장(로직 아틀리에): 주사위 사이에 뜸을 들이지 않고 바로 다음 발을 쏜다
+func _rapid(side: Dictionary) -> bool:
+	return side["who"] == "s" and side["def"].get("rapid", false)
+
+
+## 합 하나가 끝나면 둘 다 맞닿는 자리로 돌아온다. fast면 쏘던 자세 그대로 상대만 금방 돌아온다
+func _reset_pair(fast := false) -> void:
+	if fast:
+		var cx := (HOME["s"] + HOME["t"]) / 2.0
+		_slide("t", cx - _dir("t") * CONTACT, 0.12, Tween.TRANS_SINE)
+		if not T["broken"]:
+			pup["t"].pose("idle", 0.12)
+		await wait(0.04)
+		return
 	await wait(0.25)
 	var c := (HOME["s"] + HOME["t"]) / 2.0
 	for who in ["s", "t"]:
@@ -1162,10 +1175,10 @@ func _one_sided(X: Dictionary, Y: Dictionary) -> void:
 	if _banner(Y["who"]).visible:
 		_banner(Y["who"]).value = -1
 		_banner(Y["who"]).queue_redraw()
-	await wait(0.28)
+	await wait(0.08 if _rapid(X) else 0.28)
 	await _strike(X["who"], X, dx)
 	await _hit(X, Y, v, dx)
-	await _reset_pair()
+	await _reset_pair(_rapid(X) and X["i"] < X["q"].size())
 
 
 func _win_focus(side: Dictionary, n: int) -> void:
@@ -1328,7 +1341,7 @@ func _hit(X: Dictionary, Y: Dictionary, value: int, dd: Dictionary) -> void:
 	elif yw == "t" and randf() < 0.3:
 		Sfx.play("meow", -4)
 		say("t", GameData.LINES["t_hurt"].pick_random(), 0.9)
-	await wait(0.28)
+	await wait(0.08 if _rapid(X) else 0.28)
 
 
 func _stagger_hit(Y: Dictionary, n: int, show := true) -> void:
@@ -1611,8 +1624,10 @@ func _strike_stick_logic(side: Dictionary, dd: Dictionary) -> void:
 		p.pose("shotgun_ready", 0.3, Tween.TRANS_SINE)
 		return
 	var first: bool = (side["q"] as Array).find(dd) % 2 == 0
-	p.pose("pistol_ready" if first else "pistol_ready2", 0.12, Tween.TRANS_BACK)
-	await wait(0.14)
+	# 이미 권총을 겨누고 있으면(연사 중) 바로 쏜다
+	var aiming: bool = p.prop_name == "k_pistol"
+	p.pose("pistol_ready" if first else "pistol_ready2", 0.05 if aiming else 0.12, Tween.TRANS_BACK)
+	await wait(0.05 if aiming else 0.14)
 	Sfx.play("gun")
 	var mz := p.prop_tip("F")
 	_gun_fx(mz, false)
