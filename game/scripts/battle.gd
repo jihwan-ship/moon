@@ -1101,11 +1101,13 @@ func _rapid(side: Dictionary) -> bool:
 ## 합 하나가 끝나면 둘 다 맞닿는 자리로 돌아온다. fast면 쏘던 자세 그대로 상대만 금방 돌아온다
 func _reset_pair(fast := false) -> void:
 	if fast:
+		# 쏜 자세 그대로 잠깐 멈췄다가 다음 발. 상대만 제자리로 돌아온다
+		await wait(0.45)
 		var cx := (HOME["s"] + HOME["t"]) / 2.0
-		_slide("t", cx - _dir("t") * CONTACT, 0.12, Tween.TRANS_SINE)
+		_slide("t", cx - _dir("t") * CONTACT, 0.15, Tween.TRANS_SINE)
 		if not T["broken"]:
-			pup["t"].pose("idle", 0.12)
-		await wait(0.04)
+			pup["t"].pose("idle", 0.15)
+		await wait(0.15)
 		return
 	await wait(0.25)
 	var c := (HOME["s"] + HOME["t"]) / 2.0
@@ -1607,31 +1609,26 @@ func _gun_fx(muzzle: Vector2, big: bool) -> void:
 func _strike_stick_logic(side: Dictionary, dd: Dictionary) -> void:
 	var p: Puppet = pup["s"]
 	var tgt := _body("t")
+	# 원작처럼 (탁) 소리와 함께 자세가 한 번에 바뀌고, 다음 발까지 그 자세로 멈춰 있다
 	if dd["t"] == "blunt":
-		# 샷건: 앞으로 숙이며 겨눴다가, 쏘는 순간 반동으로 뒤로 밀린다
-		p.pose("shotgun_ready", 0.16, Tween.TRANS_BACK)
-		await wait(0.2)
+		# 샷건: 다리를 벌리고 양손으로 쏘며 반동으로 뒤로 밀린다
+		p.pose("shotgun_fire", 0.01)
 		Sfx.play("boom", -6)
 		Sfx.play("gun")
 		var mz := p.prop_tip("F")
 		_gun_fx(mz, true)
 		for j in 5:
 			Fx.thrust(fxl, mz, tgt + Vector2(0, -60 + j * 30), Color(1, 0.9, 0.6), 5)
-		p.pose("shotgun_fire", 0.05, Tween.TRANS_QUAD)
 		_slide("s", p.position.x - 40, 0.12)
 		_shake(12, 0.18)
-		await wait(0.04)
-		p.pose("shotgun_ready", 0.3, Tween.TRANS_SINE)
+		await wait(0.02)
 		return
 	var first: bool = (side["q"] as Array).find(dd) % 2 == 0
-	# 이미 권총을 겨누고 있으면(연사 중) 바로 쏜다
-	var aiming: bool = p.prop_name == "k_pistol"
-	p.pose("pistol_ready" if first else "pistol_ready2", 0.05 if aiming else 0.12, Tween.TRANS_BACK)
-	await wait(0.05 if aiming else 0.14)
+	p.pose("pistol_fire1" if first else "pistol_fire2", 0.01)
 	Sfx.play("gun")
 	var mz := p.prop_tip("F")
 	_gun_fx(mz, false)
 	Fx.thrust(fxl, mz, tgt + Vector2(0, randf_range(-20, 20)), Color(1, 0.92, 0.65), 6)
-	p.pose("pistol_fire1" if first else "pistol_fire2", 0.04)
-	await wait(0.04)
-	p.pose("pistol_ready" if first else "pistol_ready2", 0.22, Tween.TRANS_SINE)
+	await wait(0.02)
+	# 총이 살짝 튀었다가 금방 겨눈 자세로
+	p.pose("pistol_ready" if first else "pistol_ready2", 0.1, Tween.TRANS_SINE)
