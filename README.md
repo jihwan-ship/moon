@@ -42,6 +42,12 @@ godot --headless --path game --export-release "Web" ../build/web/index.html
 python3 tools/web_page.py
 ```
 
+### GitHub Pages
+
+`docs/`에 웹 내보내기가 들어 있습니다. 실행 파일(첫 페이지)은 `docs/index.html`입니다.
+저장소 Settings → Pages에서 Source를 "Deploy from a branch", 브랜치와 `/docs` 폴더를 고르면 됩니다.
+게임을 고친 뒤에는 `tools/pages.sh`로 `docs/`를 다시 만들고 커밋합니다.
+
 ## 리소스
 
 캐릭터, 배경, 효과음, 음악은 모두 이 저장소에서 직접 만든 것입니다. 글꼴은 Pretendard와 Black Han Sans(둘 다 OFL 1.1)를 줄여서 넣었습니다(`game/fonts/LICENSE.txt`).
