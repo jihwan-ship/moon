@@ -3,11 +3,13 @@ extends Node2D
 
 const GROUND := 500.0
 const HOME := {"s": 240.0, "t": 1040.0}
-# 카메라. 배치할 때는 멀리서 넓게(캐릭터가 작은 SD 느낌), 합을 겨룰 때는 둘에게 다가간다
-const PLAN_ZOOM := 0.6
-const PLAN_CAM := Vector2(640, 217)
-const FIGHT_ZOOM := 0.85
-const FIGHT_CAM := Vector2(640, 265)
+# 카메라. 배치할 때는 멀리서 넓게, 합을 겨룰 때는 둘에게 다가간다.
+# 원작 SD 느낌이 나도록 카메라를 멀리 빼고, 배경은 그만큼 키워서 캐릭터만 작아 보이게 한다
+const PLAN_ZOOM := 0.36
+const PLAN_CAM := Vector2(640, 167)
+const FIGHT_ZOOM := 0.55
+const FIGHT_CAM := Vector2(640, 209)
+const BG_SCALE := 1.67
 const SCALE := {"s": 0.84, "t": 0.86}
 const CONTACT := 150.0
 
@@ -82,11 +84,14 @@ func _build_world() -> void:
 	var bd := Node2D.new()
 	bd.set_script(load("res://scripts/backdrop.gd"))
 	bd.z_index = -50
+	# 화면 가운데 땅 위 한 점을 기준으로 키운다
+	bd.scale = Vector2.ONE * BG_SCALE
+	bd.position = Vector2(640, GROUND) * (1.0 - BG_SCALE)
 	world.add_child(bd)
 	dim = ColorRect.new()
 	dim.color = Color(0, 0, 0, 0)
-	dim.position = Vector2(-1000, -800)
-	dim.size = Vector2(3400, 2400)
+	dim.position = Vector2(-4000, -4000)
+	dim.size = Vector2(9000, 8000)
 	dim.z_index = 2
 	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	world.add_child(dim)
@@ -333,7 +338,7 @@ func _build_ui() -> void:
 		bubble[who] = b
 	# 안내 문구
 	toast = _label("", 20, Color("fff0c0"), fb, 6)
-	toast.position = Vector2(240, 548)
+	toast.position = Vector2(240, 500)
 	toast.size = Vector2(800, 30)
 	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(toast)
