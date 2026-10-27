@@ -39,8 +39,8 @@ static func player_cards() -> Dictionary:
 			"anim": "fire", "ult": true, "desc": "투지를 모두 쏟아붓는다. 이기면 상대 주사위를 모두 부순다."},
 	}
 
-# 롤랑 모드 책장: 원작 검은 침묵의 아홉 공방. art는 art/roland/cards의 일러스트(저장소에는 없음)
-static func roland_cards() -> Dictionary:
+# 정시우 모드 책장: 원작 검은 침묵의 아홉 공방. art는 art/sium/cards의 낙서 그림
+static func sium_cards() -> Dictionary:
 	var c := {
 		"zelkova": {"name": "느티나무 공방", "cost": 0, "dice": [d("slash", 3, 6), d("blunt", 3, 7)], "desc": "도끼로 옆을 후려치고 메이스로 올려친다."},
 		"ranga": {"name": "랑아 공방", "cost": 0, "dice": [d("pierce", 2, 4), d("pierce", 2, 4), d("slash", 2, 5)], "desc": "건틀릿으로 두 번 할퀴고 단검으로 벤다."},
@@ -55,19 +55,17 @@ static func roland_cards() -> Dictionary:
 	}
 	for k in c:
 		c[k]["anim"] = "r_" + k
-		# 정시우 모드는 대충 그린 낙서 그림, 롤랑 모드는 원작 그림
-		var dir := "sium" if Cfg.mode == "sium" else "roland"
-		c[k]["art"] = "res://art/%s/cards/%s.png" % [dir, "furioso" if k == "ult" else k]
+		c[k]["art"] = "res://art/sium/cards/%s.png" % ("furioso" if k == "ult" else k)
 	return c
 
-const ROLAND_DECK := ["zelkova", "ranga", "oldboys", "allas", "mook", "logic", "durandal", "crystal", "wheels"]
+const SIUM_DECK := ["zelkova", "ranga", "oldboys", "allas", "mook", "logic", "durandal", "crystal", "wheels"]
 
 const DECK := ["bayonet", "bayonet", "butt", "butt", "burst", "helmet", "helmet", "crawl", "crawl", "grenade", "ration", "song"]
 
 # 짬타이거 책장. pose: 공격 동작
 static func tiger_cards() -> Dictionary:
 	return {
-		"punch": {"name": "냥냥펀치", "dice": [d("blunt", 3, 6), d("blunt", 2, 5)], "anim": "punch"},
+		"punch": {"name": "따봉펀치" if Cfg.mode == "sium" else "냥냥펀치", "dice": [d("blunt", 3, 6), d("blunt", 2, 5)], "anim": "punch"},
 		"claw": {"name": "할퀴기", "dice": [d("slash", 4, 8)], "anim": "claw"},
 		"eat": {"name": "짬밥 섭취", "dice": [d("block", 4, 8)], "anim": "", "gimmick": "heal",
 			"desc": "이 책장에 피해를 주지 못하면 턴 끝에 체력 20% 회복"},
@@ -105,15 +103,49 @@ const INTRO := [
 	["t", "그럼 실력으로 증명해 봐라냥!"],
 ]
 
-const INTRO_ROLAND := [
-	["", "어느 부대 취사장 뒤, 해가 지는 시간."],
-	["", "짬통 앞에 검은 정장 차림의 남자가 서 있다."],
-	["t", "이병! 짬! 타이거! 냥!"],
-	["t", "넌 뭐냐옹? 신병치고는 옷이 이상하다냥."],
-	["s", "...고양이가 군복을 입고 있네. 도시보다 이상한 곳이군."],
-	["t", "이 짬통은 내 구역이다냥! 썩 꺼져라냥!"],
-	["s", "좋아, 가자."],
+# 정시우 모드: 짬타이거는 엄지척 아재라 냥냥거리지 않고, 정시우는 늘 같은 말만 한다
+const SIUM_LINE := "그건 그거고 이건 이거니까"
+
+const INTRO_SIUM := [
+	["", "{name}의 전입 첫날 밤."],
+	["", "취사장 뒤 짬통에서 수상한 소리가 들린다..."],
+	["s", SIUM_LINE],
+	["t", "이병! 짬! 타이거! 따봉!"],
+	["t", "이 짬통은 내 구역이다. 신병이 감히 넘보나?"],
+	["s", SIUM_LINE],
+	["t", "...뭐라는 거야. 실력으로 증명해 봐라!"],
 ]
+
+# 짬타이거 대사를 정시우 모드용으로 바꾼 것
+const SIUM_TIGER := {
+	"크윽... 이병 시절은 끝났다냥. 이제 일병이다냥!": "크윽... 이병 시절은 끝났다. 이제 일병이다!",
+	"상병 꺾였다냥. 이제부터 진짜다냥!": "상병 꺾였다. 이제부터 진짜다!",
+	"말년 병장 건드리면 어떻게 되는지 알려주겠다냥!": "말년 병장 건드리면 어떻게 되는지 알려주마!",
+	"냠냠... 오늘은 제육이다냥.": "냠냠... 오늘은 제육이다. 따봉!",
+	"짬밥은 못 참지냥.": "짬밥은 못 참지!",
+	"배부르다냥! 다시 간다냥!": "배부르다! 다시 간다!",
+	"사격 개시냥!": "사격 개시!",
+	"조준... 발사냥!": "조준... 발사!",
+	"탄약 보급 받으러 간다냥!": "탄약 보급 받으러 간다!",
+	"냐앙!": "윽!",
+	"아프다냥!": "아프다!",
+	"냐아앙...? 어지럽다냥...": "어어...? 어지럽다...",
+	"졌다냥... 신병 주제에 제법이다냥.": "졌다... 신병 주제에 제법이구만. 따봉!",
+	"전역할 때까지 이 짬통... 아니 이 부대를 잘 부탁한다냥.": "전역할 때까지 이 짬통... 아니 이 부대를 잘 부탁한다.",
+	"신병은 아직 멀었다냥~": "신병은 아직 멀었구만~",
+}
+
+
+## 모드에 맞게 대사를 바꾼다
+static func speak(who: String, text: String) -> String:
+	if Cfg.mode != "sium":
+		return text
+	if who == "s":
+		return SIUM_LINE
+	if who == "t":
+		return SIUM_TIGER.get(text, text.replace("다냥", "다").replace("냐옹", "냐").replace("냥", ""))
+	return text
+
 
 const PROMOTE := [
 	["t", "크윽... 이병 시절은 끝났다냥. 이제 일병이다냥!"],
