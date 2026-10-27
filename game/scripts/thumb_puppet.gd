@@ -5,7 +5,7 @@ extends Node2D
 ## 왼쪽(플레이어 쪽)을 보고 서 있다고 보고 값을 정한다.
 
 const IMG := "res://art/sium/thumb.png"
-const SCALE := 0.5
+const SCALE := 0.42
 
 # 자세: [기울기(도, +면 뒤로 젖힘), 앞뒤(+면 뒤로), 위아래(+면 아래로)]
 const BODY := {

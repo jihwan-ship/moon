@@ -13,9 +13,9 @@ const RIGS := {
 	"t": {"thigh": 52, "shin": 44, "upper": 40, "fore": 34, "hip_y": 108, "hipF": 12, "hipB": -12,
 		"neck": Vector2(0, -98), "shF": Vector2(16, -86), "shB": Vector2(-14, -88), "hand": "t_paw", "boot": "t_boot", "head_scale": 0.74,
 		"tail": Vector2(-38, -12)},
-	# 쫄라맨 정시우: 직접 그린 머리에 선으로 된 몸
-	"k": {"thigh": 50, "shin": 46, "upper": 36, "fore": 32, "hip_y": 100, "hipF": 2, "hipB": -2,
-		"neck": Vector2(0, -96), "shF": Vector2(2, -82), "shB": Vector2(-2, -82), "hand": "k_hand", "boot": "k_boot",
+	# 쫄라맨 정시우: 직접 그린 머리에 선으로 된 짧은 몸(SD 비율)
+	"k": {"thigh": 32, "shin": 28, "upper": 26, "fore": 22, "hip_y": 62, "hipF": 2, "hipB": -2,
+		"neck": Vector2(0, -60), "shF": Vector2(2, -50), "shB": Vector2(-2, -50), "hand": "k_hand", "boot": "k_boot",
 		"tail": null},
 }
 

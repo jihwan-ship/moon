@@ -4,12 +4,11 @@ extends Node2D
 const GROUND := 500.0
 const HOME := {"s": 240.0, "t": 1040.0}
 # 카메라. 배치할 때는 멀리서 넓게, 합을 겨룰 때는 둘에게 다가간다.
-# 원작 SD 느낌이 나도록 카메라를 멀리 빼고, 배경은 그만큼 키워서 캐릭터만 작아 보이게 한다
+# 원작처럼 깊이 있는 무대 위에 캐릭터가 쪼꼬미로 서 있게 멀리서 본다
 const PLAN_ZOOM := 0.36
 const PLAN_CAM := Vector2(640, 167)
 const FIGHT_ZOOM := 0.55
 const FIGHT_CAM := Vector2(640, 209)
-const BG_SCALE := 1.67
 const SCALE := {"s": 0.84, "t": 0.86}
 const CONTACT := 150.0
 
@@ -84,9 +83,6 @@ func _build_world() -> void:
 	var bd := Node2D.new()
 	bd.set_script(load("res://scripts/backdrop.gd"))
 	bd.z_index = -50
-	# 화면 가운데 땅 위 한 점을 기준으로 키운다
-	bd.scale = Vector2.ONE * BG_SCALE
-	bd.position = Vector2(640, GROUND) * (1.0 - BG_SCALE)
 	world.add_child(bd)
 	dim = ColorRect.new()
 	dim.color = Color(0, 0, 0, 0)

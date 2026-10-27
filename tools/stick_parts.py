@@ -82,16 +82,18 @@ hs = scaled(head)
 save('k_head', hs, -neck_x * F, -head.height * F)
 
 # 팔다리와 몸통
-line_part('k_thigh', 50)
-line_part('k_shin', 46)
-line_part('k_upper', 36)
-line_part('k_fore', 32)
+# SD(쪼꼬미) 비율: 큰 머리에 짧은 몸과 팔다리
+TORSO = 60
+line_part('k_thigh', 32)
+line_part('k_shin', 28)
+line_part('k_upper', 26)
+line_part('k_fore', 22)
 # 몸통은 엉덩이(피벗)에서 위로 뻗는다
 w = LINE + PAD * 2
-img = Image.new('RGBA', (int(w * S), int((96 + LINE + PAD * 2) * S)))
+img = Image.new('RGBA', (int(w * S), int((TORSO + LINE + PAD * 2) * S)))
 d = ImageDraw.Draw(img)
-d.line([(w / 2 * S, (PAD + LINE / 2) * S), (w / 2 * S, (PAD + LINE / 2 + 96) * S)], fill=(20, 20, 20, 255), width=int(LINE * S))
-save('k_torso', img, -w / 2, -(96 + PAD + LINE / 2))
+d.line([(w / 2 * S, (PAD + LINE / 2) * S), (w / 2 * S, (PAD + LINE / 2 + TORSO) * S)], fill=(20, 20, 20, 255), width=int(LINE * S))
+save('k_torso', img, -w / 2, -(TORSO + PAD + LINE / 2))
 # 손은 작은 점, 발은 짧은 선
 img = Image.new('RGBA', (int(16 * S), int(16 * S)))
 ImageDraw.Draw(img).ellipse([5 * S, 5 * S, 11 * S, 11 * S], fill=(20, 20, 20, 255))
