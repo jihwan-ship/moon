@@ -106,14 +106,18 @@ const INTRO := [
 # 정시우 모드: 짬타이거는 엄지척 아재라 냥냥거리지 않고, 정시우는 늘 같은 말만 한다
 const SIUM_LINE := "그건 그거고 이건 이거니까"
 
+# 처음 스토리의 정시우 대사(이것만은 바꾸지 않고 그대로 말한다)
+const SIUM_INTRO_S := ["뭐야 저놈이 짬타이거야?", "저놈을 죽이라고?", "그래 그건 그거고 이건 이거니까"]
+
 const INTRO_SIUM := [
 	["", "{name}의 전입 첫날 밤."],
 	["", "취사장 뒤 짬통에서 수상한 소리가 들린다..."],
-	["s", SIUM_LINE],
 	["t", "이병! 짬! 타이거! 따봉!"],
-	["t", "이 짬통은 내 구역이다. 신병이 감히 넘보나?"],
-	["s", SIUM_LINE],
-	["t", "...뭐라는 거야. 실력으로 증명해 봐라!"],
+	["s", SIUM_INTRO_S[0]],
+	["", "무전이 들어온다. \"짬통을 노리는 짬타이거를 처치하라.\""],
+	["s", SIUM_INTRO_S[1]],
+	["t", "이 짬통은 내 구역이다. 신병이 감히 넘보나? 실력으로 증명해 봐라!"],
+	["s", SIUM_INTRO_S[2]],
 ]
 
 # 짬타이거 대사를 정시우 모드용으로 바꾼 것
@@ -141,7 +145,7 @@ static func speak(who: String, text: String) -> String:
 	if Cfg.mode != "sium":
 		return text
 	if who == "s":
-		return SIUM_LINE
+		return text if text in SIUM_INTRO_S else SIUM_LINE
 	if who == "t":
 		return SIUM_TIGER.get(text, text.replace("다냥", "다").replace("냐옹", "냐").replace("냥", ""))
 	return text
