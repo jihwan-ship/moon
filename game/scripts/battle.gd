@@ -2,7 +2,12 @@ extends Node2D
 ## 전투 장면: 상태, 턴 흐름, 합 판정, 연출을 모두 맡는다.
 
 const GROUND := 500.0
-const HOME := {"s": 360.0, "t": 920.0}
+const HOME := {"s": 240.0, "t": 1040.0}
+# 카메라. 배치할 때는 멀리서 넓게(캐릭터가 작은 SD 느낌), 합을 겨룰 때는 둘에게 다가간다
+const PLAN_ZOOM := 0.6
+const PLAN_CAM := Vector2(640, 217)
+const FIGHT_ZOOM := 0.85
+const FIGHT_CAM := Vector2(640, 265)
 const SCALE := {"s": 0.84, "t": 0.86}
 const CONTACT := 150.0
 
@@ -69,7 +74,8 @@ func _ready() -> void:
 
 func _build_world() -> void:
 	cam = Camera2D.new()
-	cam.position = Vector2(640, 360)
+	cam.position = PLAN_CAM
+	cam.zoom = Vector2.ONE * PLAN_ZOOM
 	add_child(cam)
 	world = Node2D.new()
 	add_child(world)
@@ -327,7 +333,7 @@ func _build_ui() -> void:
 		bubble[who] = b
 	# 안내 문구
 	toast = _label("", 20, Color("fff0c0"), fb, 6)
-	toast.position = Vector2(240, 470)
+	toast.position = Vector2(240, 548)
 	toast.size = Vector2(800, 30)
 	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(toast)
@@ -402,6 +408,11 @@ func _draw_focus(c: Control) -> void:
 		c.draw_string(fb, Vector2(0, 36), "총력 사격 준비!", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("ffb16a"))
 
 
+## 배치 화면에서 캐릭터 머리 근처의 화면 좌표
+func _plan_scr(who: String) -> Vector2:
+	return (Vector2(HOME[who], GROUND - 260) - PLAN_CAM) * PLAN_ZOOM + Vector2(640, 360)
+
+
 func _draw_lines() -> void:
 	if not lines.visible:
 		return
@@ -415,7 +426,7 @@ func _draw_lines() -> void:
 			var sv: CardView = slot_views[i]
 			b = sv.position + Vector2(sv.size.x / 2, sv.size.y)
 		else:
-			b = Vector2(HOME["s"], 300)
+			b = _plan_scr("s")
 		var mid := (a + b) / 2 + Vector2(0, 50)
 		var pts := PackedVector2Array()
 		for k in 25:
@@ -434,7 +445,7 @@ func _draw_lines() -> void:
 			continue
 		var sv: CardView = slot_views[i]
 		var a := sv.position + Vector2(sv.size.x / 2, sv.size.y)
-		var b := Vector2(HOME["t"], 300)
+		var b := _plan_scr("t")
 		lines.draw_line(a, b, Color("8fe8ff"), 3)
 		lines.draw_circle(b, 6, Color("8fe8ff"))
 
@@ -696,7 +707,7 @@ func _rebuild_planning() -> void:
 	for i in intents.size():
 		var cv := CardView.new()
 		cv.setup(intents[i]["id"], intents[i]["def"], true, true)
-		cv.position = Vector2(HOME["t"] + (i - (intents.size() - 1) / 2.0) * 128 - 59, 82)
+		cv.position = Vector2(_plan_scr("t").x + (i - (intents.size() - 1) / 2.0) * 128 - 59, 82)
 		root.add_child(cv)
 		intent_views.append(cv)
 	for i in slots.size():
@@ -706,7 +717,7 @@ func _rebuild_planning() -> void:
 		else:
 			cv.setup("", {"name": "빈 칸 %d" % (i + 1), "dice": [], "cost": 0}, false, true)
 			cv.modulate = Color(1, 1, 1, 0.5)
-		cv.position = Vector2(HOME["s"] + (i - (slots.size() - 1) / 2.0) * 128 - 59, 82)
+		cv.position = Vector2(_plan_scr("s").x + (i - (slots.size() - 1) / 2.0) * 128 - 59, 82)
 		cv.pressed.connect(_on_slot.bind(i))
 		root.add_child(cv)
 		slot_views.append(cv)
@@ -851,8 +862,8 @@ func _on_go() -> void:
 
 func _enter_combat() -> void:
 	var tw := create_tween().set_parallel(true).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	tw.tween_property(cam, "zoom", Vector2(1.45, 1.45), 0.4)
-	tw.tween_property(cam, "position", Vector2(640, 330), 0.4)
+	tw.tween_property(cam, "zoom", Vector2.ONE * FIGHT_ZOOM, 0.4)
+	tw.tween_property(cam, "position", FIGHT_CAM, 0.4)
 	tw.tween_property(dim, "color:a", 0.45, 0.4)
 	await tw.finished
 
@@ -861,8 +872,8 @@ func _leave_combat() -> void:
 	banner_s.visible = false
 	banner_t.visible = false
 	var tw := create_tween().set_parallel(true).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	tw.tween_property(cam, "zoom", Vector2.ONE, 0.4)
-	tw.tween_property(cam, "position", Vector2(640, 360), 0.4)
+	tw.tween_property(cam, "zoom", Vector2.ONE * PLAN_ZOOM, 0.4)
+	tw.tween_property(cam, "position", PLAN_CAM, 0.4)
 	tw.tween_property(dim, "color:a", 0.0, 0.4)
 	for who in ["s", "t"]:
 		tw.tween_property(pup[who], "position:x", HOME[who], 0.4)

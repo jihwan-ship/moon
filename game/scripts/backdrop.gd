@@ -88,7 +88,7 @@ func _draw() -> void:
 		var y := GROUND + 10 + _rand() * 230
 		draw_circle(Vector2(x, y), 1.5 + _rand() * 2.5, Color(0.25, 0.2, 0.17, 0.5))
 	# 짬통(오른쪽)
-	var cx := 1130.0
+	var cx := 1300.0
 	draw_rect(Rect2(cx - 50, GROUND - 92, 100, 92), Color("3f6a4a"))
 	draw_rect(Rect2(cx - 56, GROUND - 104, 112, 16), Color("2f523a"))
 	draw_rect(Rect2(cx - 50, GROUND - 92, 100, 92), Color("1a1520"), false, 4)
