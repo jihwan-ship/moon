@@ -33,6 +33,7 @@ var test_mode := ""
 
 # 노드
 var cam: Camera2D
+var fx_hold := 0                 # 아직 사라지는 중인 긴 이펙트 수(다 사라질 때까지 합 화면을 유지한다)
 var world: Node2D
 var fxl: Node2D
 var dim: ColorRect
@@ -870,6 +871,8 @@ func _enter_combat() -> void:
 
 
 func _leave_combat() -> void:
+	while fx_hold > 0:
+		await wait(0.05)
 	banner_s.visible = false
 	banner_t.visible = false
 	var tw := create_tween().set_parallel(true).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
@@ -1815,31 +1818,37 @@ func _ground_burst(at: Vector2) -> void:
 		tw.tween_callback(cr.queue_free)
 
 
+# 묵 공방 이펙트 전체를 이만큼 느리게(원작처럼 검기가 오래 남게)
+const MOOK_SLOW := 2.2
+
+
 ## 묵 공방: 칼을 허리춤에 쥐고 웅크렸다가, 눈 깜짝할 새 뽑아 베고 바로 다시 넣는다(자세만 딱딱 바뀐다).
 ## 이펙트는 원작 순서대로: 빛줄기 → 상대를 감싸는 큰 고리 두 개 → X자 빛줄기 → 하얀 섬광 → 빛 방울과 번개가 남았다가 서서히 사라짐
 func _strike_stick_mook(_side_: Dictionary, _dd: Dictionary) -> void:
 	var p: Puppet = pup["s"]
 	p.set_pose(Poses.get_pose("k", "mook_ready"))
-	await wait(0.3)
+	await wait(0.5)
 	Sfx.play("swing")
 	p.set_pose(Poses.get_pose("k", "mook_draw"))
 	_mook_fx(_body("t") + Vector2(0, 20))
-	await wait(0.1)
+	await wait(0.2)
 	p.set_pose(Poses.get_pose("k", "mook_ready"))
 	Sfx.play("click", -2)
 	# 섬광이 터지는 순간에 맞는다
-	await wait(0.34)
+	await wait(0.44 * MOOK_SLOW - 0.2)
 	Sfx.play("slash")
 	Sfx.play("boom", -8)
 	_shake(12, 0.25)
 
 
 func _mook_fx(c: Vector2) -> void:
+	fx_hold += 1
+	get_tree().create_timer(1.85 * MOOK_SLOW, true, false, false).timeout.connect(func(): fx_hold -= 1)
 	# 1) 상대를 사선으로 가로지르는 가는 빛줄기
-	_light_line(c, -14, 620, 3, 0.0, 0.5)
+	_light_line(c, -14, 620, 3, 0.0, 0.5 * MOOK_SLOW)
 	# 2) 상대를 감싸는 큰 고리 두 개(지구본처럼 비스듬히 겹친다)와 안쪽 연기
-	_ring_fx(c, 300, 240, -20, 0.06)
-	_ring_fx(c, 290, 110, 35, 0.12)
+	_ring_fx(c, 300, 240, -20, 0.06 * MOOK_SLOW)
+	_ring_fx(c, 290, 110, 35, 0.12 * MOOK_SLOW)
 	for k in 7:
 		var sm := Polygon2D.new()
 		var pts := PackedVector2Array()
@@ -1853,16 +1862,16 @@ func _mook_fx(c: Vector2) -> void:
 		sm.modulate.a = 0.0
 		fxl.add_child(sm)
 		var tw := sm.create_tween()
-		tw.tween_interval(0.08)
-		tw.tween_property(sm, "modulate:a", 1.0, 0.1)
+		tw.tween_interval(0.08 * MOOK_SLOW)
+		tw.tween_property(sm, "modulate:a", 1.0, 0.1 * MOOK_SLOW)
 		tw.set_parallel(true)
-		tw.tween_property(sm, "scale", Vector2.ONE * 1.6, 1.0)
-		tw.tween_property(sm, "modulate:a", 0.0, 0.7).set_delay(0.3)
+		tw.tween_property(sm, "scale", Vector2.ONE * 1.6, 1.0 * MOOK_SLOW)
+		tw.tween_property(sm, "modulate:a", 0.0, 0.7 * MOOK_SLOW).set_delay(0.3 * MOOK_SLOW)
 		tw.chain().tween_callback(sm.queue_free)
 	# 3) X자로 교차하는 긴 빛줄기
-	_light_line(c, 32, 760, 6, 0.2, 0.6)
-	_light_line(c, -48, 700, 5, 0.25, 0.6)
-	_light_line(c, 80, 520, 3, 0.3, 0.6)
+	_light_line(c, 32, 760, 6, 0.2 * MOOK_SLOW, 0.6 * MOOK_SLOW)
+	_light_line(c, -48, 700, 5, 0.25 * MOOK_SLOW, 0.6 * MOOK_SLOW)
+	_light_line(c, 80, 520, 3, 0.3 * MOOK_SLOW, 0.6 * MOOK_SLOW)
 	# 4) 하얀 섬광(상대를 중심으로 화면 대부분을 덮는다)
 	var g := Gradient.new()
 	g.offsets = PackedFloat32Array([0.0, 0.45, 1.0])
@@ -1882,14 +1891,14 @@ func _mook_fx(c: Vector2) -> void:
 	bloom.modulate.a = 0.0
 	fxl.add_child(bloom)
 	var btw := bloom.create_tween()
-	btw.tween_interval(0.42)
+	btw.tween_interval(0.42 * MOOK_SLOW)
 	btw.tween_property(bloom, "modulate:a", 1.0, 0.04)
-	btw.tween_interval(0.12)
-	btw.tween_property(bloom, "modulate:a", 0.0, 0.4)
+	btw.tween_interval(0.12 * MOOK_SLOW)
+	btw.tween_property(bloom, "modulate:a", 0.0, 0.4 * MOOK_SLOW)
 	btw.tween_callback(bloom.queue_free)
-	get_tree().create_timer(0.44).timeout.connect(func(): _screen_flash(0.35))
+	get_tree().create_timer(0.44 * MOOK_SLOW).timeout.connect(func(): _screen_flash(0.35))
 	# 5) 빛 방울, 번개, 가로 빛줄기가 남았다가 서서히 사라진다
-	_light_line(c, 0, 1100, 4, 0.5, 1.0)
+	_light_line(c, 0, 1100, 4, 0.5 * MOOK_SLOW, 1.0 * MOOK_SLOW)
 	for k in 18:
 		var o := Polygon2D.new()
 		var rr := randf_range(6, 18)
@@ -1908,11 +1917,11 @@ func _mook_fx(c: Vector2) -> void:
 		glow.scale = Vector2.ONE * 2.2
 		o.add_child(glow)
 		var tw := o.create_tween()
-		tw.tween_interval(0.5 + randf() * 0.15)
+		tw.tween_interval((0.5 + randf() * 0.15) * MOOK_SLOW)
 		tw.tween_property(o, "scale", Vector2.ONE, 0.08)
 		tw.set_parallel(true)
-		tw.tween_property(o, "position", o.position + Vector2(randf_range(-30, 30), randf_range(-60, -10)), 1.2)
-		tw.tween_property(o, "modulate:a", 0.0, 0.9).set_delay(0.3)
+		tw.tween_property(o, "position", o.position + Vector2(randf_range(-30, 30), randf_range(-60, -10)), 1.2 * MOOK_SLOW)
+		tw.tween_property(o, "modulate:a", 0.0, 0.9 * MOOK_SLOW).set_delay(0.3 * MOOK_SLOW)
 		tw.chain().tween_callback(o.queue_free)
 	for k in 3:
 		var z := Line2D.new()
@@ -1929,10 +1938,10 @@ func _mook_fx(c: Vector2) -> void:
 		z.modulate.a = 0.0
 		fxl.add_child(z)
 		var tw := z.create_tween()
-		tw.tween_interval(0.5)
+		tw.tween_interval(0.5 * MOOK_SLOW)
 		tw.tween_property(z, "modulate:a", 1.0, 0.03)
-		tw.tween_interval(0.15)
-		tw.tween_property(z, "modulate:a", 0.0, 0.6)
+		tw.tween_interval(0.15 * MOOK_SLOW)
+		tw.tween_property(z, "modulate:a", 0.0, 0.6 * MOOK_SLOW)
 		tw.tween_callback(z.queue_free)
 
 
@@ -1953,8 +1962,8 @@ func _light_line(c: Vector2, deg: float, half: float, width: float, delay: float
 		fxl.add_child(l)
 		var tw := l.create_tween()
 		tw.tween_interval(delay)
-		tw.tween_method(func(t: float): l.points = PackedVector2Array([c - d * t, c + d * t]), 0.0, 1.0, 0.06)
-		tw.tween_interval(0.12)
+		tw.tween_method(func(t: float): l.points = PackedVector2Array([c - d * t, c + d * t]), 0.0, 1.0, 0.06 * MOOK_SLOW)
+		tw.tween_interval(0.12 * MOOK_SLOW)
 		tw.tween_property(l, "modulate:a", 0.0, life)
 		tw.tween_callback(l.queue_free)
 
@@ -1989,8 +1998,8 @@ func _ring_fx(c: Vector2, rx: float, ry: float, tilt: float, delay: float) -> vo
 	draw.call(0.02)
 	var tw := root.create_tween()
 	tw.tween_interval(delay)
-	tw.tween_method(draw, 0.02, 1.0, 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_method(draw, 0.02, 1.0, 0.12 * MOOK_SLOW).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tw.set_parallel(true)
-	tw.tween_property(root, "rotation_degrees", tilt + 25, 1.1)
-	tw.tween_property(root, "modulate:a", 0.0, 0.8).set_delay(0.3)
+	tw.tween_property(root, "rotation_degrees", tilt + 25, 1.1 * MOOK_SLOW)
+	tw.tween_property(root, "modulate:a", 0.0, 0.8 * MOOK_SLOW).set_delay(0.4 * MOOK_SLOW)
 	tw.chain().tween_callback(root.queue_free)
