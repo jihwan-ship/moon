@@ -1,6 +1,6 @@
 """Godot 웹 내보내기 결과를 Artifact로 올릴 수 있는 형태로 바꾼다.
 - index.wasm(약 35MB)을 gzip으로 줄여 index.wasm.bin으로 저장하고, 페이지에서 받아 풀어 쓴다.
-- 문서 뼈대 없이 쓰는 play.html을 만든다.
+- 문서 뼈대 없이 쓰는 play.html과, 뼈대를 갖춘 index.html(파일로 올리는 Artifact용)을 만든다.
 사용: python3 tools/web_page.py  (build/web -> build/artifact)
 """
 import gzip
@@ -70,5 +70,7 @@ engine.startGame({
 </script>
 """.replace('__CONFIG__', json.dumps(config))
 open(os.path.join(OUT, 'play.html'), 'w', encoding='utf-8').write(page)
+head = '<!DOCTYPE html>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+open(os.path.join(OUT, 'index.html'), 'w', encoding='utf-8').write(head + page)
 for n in sorted(os.listdir(OUT)):
     print(n, os.path.getsize(os.path.join(OUT, n)))
