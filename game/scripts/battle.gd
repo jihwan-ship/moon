@@ -1113,8 +1113,8 @@ func _rapid(side: Dictionary) -> bool:
 ## 합 하나가 끝나면 둘 다 맞닿는 자리로 돌아온다. fast면 쏘던 자세 그대로 상대만 금방 돌아온다
 func _reset_pair(fast := false) -> void:
 	if fast:
-		# 원작처럼 쏜 자세 그대로 2초쯤 멈췄다가 다음 발. 상대만 제자리로 돌아온다
-		await wait(1.5)
+		# 원작처럼 쏜 자세 그대로 1초쯤 멈췄다가 다음 발. 상대만 제자리로 돌아온다
+		await wait(0.55)
 		var cx := (HOME["s"] + HOME["t"]) / 2.0
 		_slide("t", cx - _dir("t") * CONTACT, 0.15, Tween.TRANS_SINE)
 		if not T["broken"]:
@@ -1650,37 +1650,85 @@ func _strike_stick_logic(side: Dictionary, dd: Dictionary) -> void:
 	p.pose("pistol_ready" if first else "pistol_ready2", 0.1, Tween.TRANS_SINE)
 
 
-## 휠즈 인더스트리: 큰 대검이라 빠르게 끊지 않고 묵직하게. 뒤로 끌었다가, 천천히 들어 올리고,
-## 잠깐 멈췄다가 머리 위를 넘겨 한 번에 땅을 내리찍는다
+## 휠즈 인더스트리: 원작처럼 휘두르는 동작은 거의 없이 자세만 딱딱 바뀌고, 그 자리를 화려한 이펙트로 채운다.
+## 칼을 머리 뒤로 든 자세로 바뀌어 힘을 모았다가, 내리찍은 자세로 바뀌는 순간 궤적과 파편이 터진다
 func _strike_stick_wheels(_side_: Dictionary, _dd: Dictionary) -> void:
 	var p: Puppet = pup["s"]
-	p.pose("wheels_ready", 0.25, Tween.TRANS_SINE)
-	_slide("s", p.position.x - 24, 0.25, Tween.TRANS_SINE)
+	p.set_pose(Poses.get_pose("k", "wheels_lift"))
 	Sfx.play("swing", -10)
-	await wait(0.3)
-	p.pose("wheels_lift", 0.42, Tween.TRANS_SINE, Tween.EASE_IN_OUT)
-	await wait(0.5)
+	_charge_fx(p.prop_tip("F"))
+	await wait(0.4)
+	# 내리찍기: 자세는 한 번에 바뀌고, 칼이 지나간 자리는 초승달 궤적 두 겹으로
 	Sfx.play("swing")
-	# 원작처럼 움직임은 적게, 대신 칼이 지나간 자리에 커다란 초승달 궤적을 남긴다
-	Fx.crescent(fxl, _body("s") + Vector2(150, 20), 260, -170, 30, 100, Color(0.93, 0.92, 0.9), 0.1)
-	p.pose("wheels_slam", 0.09, Tween.TRANS_QUAD, Tween.EASE_IN)
-	_slide("s", p.position.x + 70, 0.09, Tween.TRANS_QUAD)
-	await wait(0.09)
-	# 같은 모습을 -180~180 각도로 바꿔 둔다(풀 때 팔이 빙글 돌지 않게)
+	var c := _body("s") + Vector2(160, 30)
+	Fx.crescent(fxl, c, 300, -175, 35, 140, Color(0.93, 0.92, 0.9), 0.08)
+	Fx.crescent(fxl, c + Vector2(10, 10), 240, -160, 30, 50, Color(1, 1, 1), 0.1)
 	p.set_pose(Poses.get_pose("k", "wheels_slam_n"))
+	_slide("s", p.position.x + 70, 0.06, Tween.TRANS_QUAD)
+	await wait(0.06)
 	Sfx.play("boom")
 	Sfx.play("heavy")
 	var tip := p.prop_tip("F")
 	_ground_burst(Vector2(tip.x - 40, GROUND))
-	_shake(22, 0.35)
-	_hitstop(0.12)
+	_screen_flash(0.55)
+	_shake(26, 0.4)
+	_hitstop(0.14)
+
+
+## 칼끝에 힘이 모인다(작은 조각이 빨려 들어가고 반짝)
+func _charge_fx(at: Vector2) -> void:
+	for k in 10:
+		var d := Polygon2D.new()
+		var r := randf_range(4, 9)
+		d.polygon = PackedVector2Array([Vector2(-r, 0), Vector2(0, -r), Vector2(r, 0), Vector2(0, r)])
+		d.color = Color(0.1, 0.09, 0.08) if k % 2 else Color(0.95, 0.94, 0.9)
+		var from := at + Vector2.from_angle(randf() * TAU) * randf_range(90, 160)
+		d.position = from
+		d.z_index = 42
+		fxl.add_child(d)
+		var tw := d.create_tween()
+		tw.tween_property(d, "position", at, randf_range(0.25, 0.38)).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tw.tween_callback(d.queue_free)
+	Fx.ring(fxl, at, Color(1, 1, 1), 90, 10, 0.35, 5)
+
+
+## 화면 전체가 하얗게 번쩍
+func _screen_flash(a := 0.5) -> void:
+	var r := ColorRect.new()
+	r.color = Color(1, 1, 1, a)
+	r.set_anchors_preset(Control.PRESET_FULL_RECT)
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui.add_child(r)
+	var tw := r.create_tween()
+	tw.tween_property(r, "color:a", 0.0, 0.22)
+	tw.tween_callback(r.queue_free)
 
 
 ## 땅을 내리찍은 자리에서 파편이 솟구친다(원작의 검은 잉크 파편을 낙서 느낌으로)
 func _ground_burst(at: Vector2) -> void:
 	var ink := Color(0.1, 0.09, 0.08)
+	# 땅을 따라 퍼지는 충격파(납작한 고리)
+	for k in 2:
+		var ring := Line2D.new()
+		ring.width = 6.0 - k * 2
+		ring.default_color = Color(0.95, 0.94, 0.9)
+		ring.closed = true
+		ring.position = at
+		ring.z_index = 39
+		fxl.add_child(ring)
+		var set_r := func(rr: float) -> void:
+			var pts := PackedVector2Array()
+			for i in 32:
+				var ang := TAU * i / 32.0
+				pts.append(Vector2(cos(ang), sin(ang) * 0.2) * rr)
+			ring.points = pts
+		set_r.call(20.0)
+		var tw := ring.create_tween().set_parallel(true)
+		tw.tween_method(set_r, 20.0, 420.0 + k * 160, 0.4 + k * 0.1).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_property(ring, "modulate:a", 0.0, 0.45 + k * 0.1)
+		tw.chain().tween_callback(ring.queue_free)
 	# 뾰족한 파편이 부채꼴로 크게 솟는다(흰 바탕에 검은 테두리, 낙서 느낌)
-	for k in 22:
+	for k in 34:
 		var ang := deg_to_rad(randf_range(-165, -15))
 		var dir := Vector2(cos(ang), sin(ang))
 		var len := randf_range(140, 380) * (0.5 + 0.5 * absf(sin(ang)))
