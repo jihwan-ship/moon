@@ -45,7 +45,8 @@ python3 tools/web_page.py
 ### GitHub Pages
 
 `docs/`에 웹 내보내기가 들어 있습니다. 실행 파일(첫 페이지)은 `docs/index.html`입니다.
-저장소 Settings → Pages에서 Source를 "Deploy from a branch", 브랜치와 `/docs` 폴더를 고르면 됩니다.
+저장소 Settings → Pages에서 Source를 "Deploy from a branch", 브랜치를 고르면 됩니다.
+폴더를 `/ (root)`로 두면 맨 위 `index.html`이 `docs/`로 보내 주고, `/docs`로 두면 바로 게임이 뜹니다.
 게임을 고친 뒤에는 `tools/pages.sh`로 `docs/`를 다시 만들고 커밋합니다.
 
 ## 리소스
