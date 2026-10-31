@@ -1816,7 +1816,7 @@ func _ground_burst(at: Vector2) -> void:
 
 
 ## 묵 공방: 칼을 허리춤에 쥐고 웅크렸다가, 눈 깜짝할 새 뽑아 베고 바로 다시 넣는다(자세만 딱딱 바뀐다).
-## 상대 주위에 검기가 동그랗게 휘리릭 그려지고, 가는 빛줄기와 빛 방울이 남았다가 서서히 사라진다
+## 이펙트는 원작 순서대로: 빛줄기 → 상대를 감싸는 큰 고리 두 개 → X자 빛줄기 → 하얀 섬광 → 빛 방울과 번개가 남았다가 서서히 사라짐
 func _strike_stick_mook(_side_: Dictionary, _dd: Dictionary) -> void:
 	var p: Puppet = pup["s"]
 	p.set_pose(Poses.get_pose("k", "mook_ready"))
@@ -1824,103 +1824,173 @@ func _strike_stick_mook(_side_: Dictionary, _dd: Dictionary) -> void:
 	Sfx.play("swing")
 	p.set_pose(Poses.get_pose("k", "mook_draw"))
 	_mook_fx(_body("t") + Vector2(0, 20))
-	await wait(0.12)
+	await wait(0.1)
 	p.set_pose(Poses.get_pose("k", "mook_ready"))
 	Sfx.play("click", -2)
-	await wait(0.2)
+	# 섬광이 터지는 순간에 맞는다
+	await wait(0.34)
 	Sfx.play("slash")
-	_screen_flash(0.3)
-	_shake(10, 0.2)
+	Sfx.play("boom", -8)
+	_shake(12, 0.25)
 
 
 func _mook_fx(c: Vector2) -> void:
-	var white := Color(1, 1, 1)
-	# 동그랗게 휘감는 검기: 가는 호가 각도를 바꿔 가며 빠르게 그려진다
+	# 1) 상대를 사선으로 가로지르는 가는 빛줄기
+	_light_line(c, -14, 620, 3, 0.0, 0.5)
+	# 2) 상대를 감싸는 큰 고리 두 개(지구본처럼 비스듬히 겹친다)와 안쪽 연기
+	_ring_fx(c, 300, 240, -20, 0.06)
+	_ring_fx(c, 290, 110, 35, 0.12)
 	for k in 7:
-		var r := randf_range(150, 240)
-		var a0 := k * 51.0 + randf_range(-15, 15)
-		_arc_line(c + Vector2(randf_range(-20, 20), randf_range(-20, 20)), r, a0, randf_range(150, 230), randf_range(4, 9), k * 0.035, 0.9)
-	# 크고 굵은 원 하나(마지막에 남는 큰 고리)
-	_arc_line(c, 270, -120, 300, 14, 0.2, 1.1)
-	# 상대를 가로지르는 가는 빛줄기
-	for k in 5:
-		var ang := deg_to_rad(randf_range(-40, 40) + (90.0 if k == 4 else 0.0))
-		var d := Vector2.from_angle(ang) * randf_range(380, 560)
-		var l := Line2D.new()
-		l.width = randf_range(2, 5)
-		l.default_color = white
-		l.z_index = 44
-		var o := c + Vector2(randf_range(-40, 40), randf_range(-40, 40))
-		l.points = PackedVector2Array([o, o])
-		fxl.add_child(l)
-		var tw := l.create_tween()
-		tw.tween_interval(0.08 + k * 0.03)
-		tw.tween_method(func(t: float): l.points = PackedVector2Array([o - d * t, o + d * t]), 0.0, 1.0, 0.06)
-		tw.tween_interval(0.25)
-		tw.tween_property(l, "modulate:a", 0.0, 0.8)
-		tw.tween_callback(l.queue_free)
-	# 가로로 번쩍이는 빛
-	var h := Line2D.new()
-	h.width = 10
-	h.default_color = white
-	h.points = PackedVector2Array([c + Vector2(-900, 0), c + Vector2(900, 0)])
-	h.z_index = 44
-	h.modulate.a = 0.0
-	fxl.add_child(h)
-	var htw := h.create_tween()
-	htw.tween_interval(0.28)
-	htw.tween_property(h, "modulate:a", 1.0, 0.03)
-	htw.tween_property(h, "width", 2.0, 0.5)
-	htw.parallel().tween_property(h, "modulate:a", 0.0, 0.6)
-	htw.tween_callback(h.queue_free)
-	# 빛 방울이 흩어졌다가 서서히 사라진다
-	for k in 16:
+		var sm := Polygon2D.new()
+		var pts := PackedVector2Array()
+		var rr := randf_range(50, 90)
+		for i in 14:
+			pts.append(Vector2.from_angle(TAU * i / 14.0) * rr * randf_range(0.8, 1.15))
+		sm.polygon = pts
+		sm.color = Color(0.08, 0.07, 0.07, 0.55)
+		sm.position = c + Vector2(randf_range(-150, 150), randf_range(-120, 100))
+		sm.z_index = 38
+		sm.modulate.a = 0.0
+		fxl.add_child(sm)
+		var tw := sm.create_tween()
+		tw.tween_interval(0.08)
+		tw.tween_property(sm, "modulate:a", 1.0, 0.1)
+		tw.set_parallel(true)
+		tw.tween_property(sm, "scale", Vector2.ONE * 1.6, 1.0)
+		tw.tween_property(sm, "modulate:a", 0.0, 0.7).set_delay(0.3)
+		tw.chain().tween_callback(sm.queue_free)
+	# 3) X자로 교차하는 긴 빛줄기
+	_light_line(c, 32, 760, 6, 0.2, 0.6)
+	_light_line(c, -48, 700, 5, 0.25, 0.6)
+	_light_line(c, 80, 520, 3, 0.3, 0.6)
+	# 4) 하얀 섬광(상대를 중심으로 화면 대부분을 덮는다)
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, 0.45, 1.0])
+	g.colors = PackedColorArray([Color(1, 1, 1, 1), Color(1, 1, 1, 0.85), Color(1, 1, 1, 0)])
+	var gt := GradientTexture2D.new()
+	gt.gradient = g
+	gt.fill = GradientTexture2D.FILL_RADIAL
+	gt.fill_from = Vector2(0.5, 0.5)
+	gt.fill_to = Vector2(1.0, 0.5)
+	gt.width = 128
+	gt.height = 128
+	var bloom := Sprite2D.new()
+	bloom.texture = gt
+	bloom.position = c
+	bloom.scale = Vector2(14, 9)
+	bloom.z_index = 46
+	bloom.modulate.a = 0.0
+	fxl.add_child(bloom)
+	var btw := bloom.create_tween()
+	btw.tween_interval(0.42)
+	btw.tween_property(bloom, "modulate:a", 1.0, 0.04)
+	btw.tween_interval(0.12)
+	btw.tween_property(bloom, "modulate:a", 0.0, 0.4)
+	btw.tween_callback(bloom.queue_free)
+	get_tree().create_timer(0.44).timeout.connect(func(): _screen_flash(0.35))
+	# 5) 빛 방울, 번개, 가로 빛줄기가 남았다가 서서히 사라진다
+	_light_line(c, 0, 1100, 4, 0.5, 1.0)
+	for k in 18:
 		var o := Polygon2D.new()
-		var rr := randf_range(5, 14)
+		var rr := randf_range(6, 18)
 		var pts := PackedVector2Array()
 		for i in 12:
 			pts.append(Vector2.from_angle(TAU * i / 12.0) * rr)
 		o.polygon = pts
-		o.color = Color(1, 1, 1, 0.9)
-		o.position = c + Vector2(randf_range(-320, 320), randf_range(-220, 160))
-		o.z_index = 43
+		o.color = Color(1, 1, 1, 0.95)
+		o.position = c + Vector2(randf_range(-420, 420), randf_range(-280, 180))
+		o.z_index = 47
 		o.scale = Vector2.ZERO
 		fxl.add_child(o)
+		var glow := Polygon2D.new()
+		glow.polygon = pts
+		glow.color = Color(1, 1, 1, 0.25)
+		glow.scale = Vector2.ONE * 2.2
+		o.add_child(glow)
 		var tw := o.create_tween()
-		tw.tween_interval(0.15 + randf() * 0.25)
-		tw.tween_property(o, "scale", Vector2.ONE, 0.12)
+		tw.tween_interval(0.5 + randf() * 0.15)
+		tw.tween_property(o, "scale", Vector2.ONE, 0.08)
 		tw.set_parallel(true)
-		tw.tween_property(o, "position", o.position + Vector2(randf_range(-40, 40), randf_range(-70, -20)), 1.2)
-		tw.tween_property(o, "modulate:a", 0.0, 1.0).set_delay(0.3)
+		tw.tween_property(o, "position", o.position + Vector2(randf_range(-30, 30), randf_range(-60, -10)), 1.2)
+		tw.tween_property(o, "modulate:a", 0.0, 0.9).set_delay(0.3)
 		tw.chain().tween_callback(o.queue_free)
+	for k in 3:
+		var z := Line2D.new()
+		z.width = 3
+		z.default_color = Color(1, 1, 1)
+		z.z_index = 47
+		var q := c + Vector2(randf_range(-250, 50), randf_range(100, 220))
+		var dir := Vector2.from_angle(deg_to_rad(randf_range(-70, -40)))
+		var pts := PackedVector2Array([q])
+		for i in 7:
+			q += dir * randf_range(50, 80) + Vector2(randf_range(-25, 25), randf_range(-25, 25))
+			pts.append(q)
+		z.points = pts
+		z.modulate.a = 0.0
+		fxl.add_child(z)
+		var tw := z.create_tween()
+		tw.tween_interval(0.5)
+		tw.tween_property(z, "modulate:a", 1.0, 0.03)
+		tw.tween_interval(0.15)
+		tw.tween_property(z, "modulate:a", 0.0, 0.6)
+		tw.tween_callback(z.queue_free)
 
 
-## 가는 호(검기). a0부터 sweep도만큼 빠르게 그려지고 잠깐 남았다가 life초에 걸쳐 서서히 사라진다
-func _arc_line(c: Vector2, r: float, a0: float, sweep: float, width: float, delay: float, life: float) -> void:
-	var l := Line2D.new()
-	l.width = width
-	l.default_color = Color(1, 1, 1)
-	l.z_index = 44
-	l.begin_cap_mode = Line2D.LINE_CAP_ROUND
-	l.end_cap_mode = Line2D.LINE_CAP_ROUND
-	# 끝으로 갈수록 가늘게
-	var curve := Curve.new()
-	curve.add_point(Vector2(0, 0.2))
-	curve.add_point(Vector2(0.5, 1.0))
-	curve.add_point(Vector2(1, 0.2))
-	l.width_curve = curve
-	fxl.add_child(l)
+## 상대를 가로지르는 빛줄기. 가운데서 양쪽으로 빠르게 뻗었다가 서서히 사라진다
+func _light_line(c: Vector2, deg: float, half: float, width: float, delay: float, life: float) -> void:
+	var d := Vector2.from_angle(deg_to_rad(deg)) * half
+	for layer in 2:
+		var l := Line2D.new()
+		l.width = width * (3.5 if layer == 0 else 1.0)
+		l.default_color = Color(1, 1, 1, 0.25 if layer == 0 else 1.0)
+		l.z_index = 45
+		var curve := Curve.new()
+		curve.add_point(Vector2(0, 0.0))
+		curve.add_point(Vector2(0.5, 1.0))
+		curve.add_point(Vector2(1, 0.0))
+		l.width_curve = curve
+		l.points = PackedVector2Array([c, c])
+		fxl.add_child(l)
+		var tw := l.create_tween()
+		tw.tween_interval(delay)
+		tw.tween_method(func(t: float): l.points = PackedVector2Array([c - d * t, c + d * t]), 0.0, 1.0, 0.06)
+		tw.tween_interval(0.12)
+		tw.tween_property(l, "modulate:a", 0.0, life)
+		tw.tween_callback(l.queue_free)
+
+
+## 상대를 감싸는 굵고 밝은 고리(기울어진 타원). 빠르게 한 바퀴 그려지고 천천히 돌며 사라진다
+func _ring_fx(c: Vector2, rx: float, ry: float, tilt: float, delay: float) -> void:
+	var root := Node2D.new()
+	root.position = c
+	root.rotation_degrees = tilt
+	root.z_index = 44
+	fxl.add_child(root)
+	var lines: Array[Line2D] = []
+	for layer in 2:
+		var l := Line2D.new()
+		l.width = 30.0 if layer == 0 else 9.0
+		l.default_color = Color(1, 1, 1, 0.22 if layer == 0 else 1.0)
+		var curve := Curve.new()
+		curve.add_point(Vector2(0, 0.15))
+		curve.add_point(Vector2(0.7, 1.0))
+		curve.add_point(Vector2(1, 0.5))
+		l.width_curve = curve
+		root.add_child(l)
+		lines.append(l)
 	var draw := func(t: float) -> void:
 		var pts := PackedVector2Array()
-		var n := maxi(2, int(40 * t))
+		var n := maxi(2, int(48 * t))
 		for i in n + 1:
-			var a := deg_to_rad(a0 + sweep * t * i / n)
-			pts.append(c + Vector2(cos(a), sin(a) * 0.85) * r)
-		l.points = pts
+			var a := TAU * t * i / n
+			pts.append(Vector2(cos(a) * rx, sin(a) * ry))
+		for l in lines:
+			l.points = pts
 	draw.call(0.02)
-	var tw := l.create_tween()
+	var tw := root.create_tween()
 	tw.tween_interval(delay)
-	tw.tween_method(draw, 0.02, 1.0, 0.09).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	tw.tween_interval(0.2)
-	tw.tween_property(l, "modulate:a", 0.0, life)
-	tw.tween_callback(l.queue_free)
+	tw.tween_method(draw, 0.02, 1.0, 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.set_parallel(true)
+	tw.tween_property(root, "rotation_degrees", tilt + 25, 1.1)
+	tw.tween_property(root, "modulate:a", 0.0, 0.8).set_delay(0.3)
+	tw.chain().tween_callback(root.queue_free)
