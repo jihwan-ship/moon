@@ -810,7 +810,7 @@ func _refresh_hud() -> void:
 	_set_bar(hud["t_mt"], T["mental"], T["max_mental"])
 	var ph: Dictionary = GameData.PHASES[phase]
 	(hud["t_name"] as Label).text = "%s 짬타이거" % ph["rank"]
-	(hud["mid"] as Label).text = "제 %d막 · %d턴" % [phase + 1, turn_no]
+	(hud["mid"] as Label).text = "제 %d막 %d턴" % [phase + 1, turn_no]
 	var rk := ""
 	for i in GameData.PHASES.size():
 		var r: String = GameData.PHASES[i]["rank"]
