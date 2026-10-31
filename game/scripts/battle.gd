@@ -1650,22 +1650,16 @@ func _strike_stick_logic(side: Dictionary, dd: Dictionary) -> void:
 	p.pose("pistol_ready" if first else "pistol_ready2", 0.1, Tween.TRANS_SINE)
 
 
-## 휠즈 인더스트리: 원작처럼 휘두르는 동작은 거의 없이 자세만 딱딱 바뀌고, 그 자리를 화려한 이펙트로 채운다.
-## 칼을 머리 뒤로 든 자세로 바뀌어 힘을 모았다가, 내리찍은 자세로 바뀌는 순간 궤적과 파편이 터진다
+## 휠즈 인더스트리: 원작처럼 중간 동작 없이, 평소 서 있던 정시우가 (쾅) 하는 순간 내리찍은 자세로 바뀐다.
+## 칼이 지나간 자리는 초승달 궤적으로, 나머지는 파편과 충격파 같은 이펙트로 채운다
 func _strike_stick_wheels(_side_: Dictionary, _dd: Dictionary) -> void:
 	var p: Puppet = pup["s"]
-	p.set_pose(Poses.get_pose("k", "wheels_lift"))
-	Sfx.play("swing", -10)
-	_charge_fx(p.prop_tip("F"))
-	await wait(0.4)
-	# 내리찍기: 자세는 한 번에 바뀌고, 칼이 지나간 자리는 초승달 궤적 두 겹으로
+	await wait(0.15)
 	Sfx.play("swing")
+	p.set_pose(Poses.get_pose("k", "wheels_slam"))
 	var c := _body("s") + Vector2(160, 30)
-	Fx.crescent(fxl, c, 300, -175, 35, 140, Color(0.93, 0.92, 0.9), 0.08)
-	Fx.crescent(fxl, c + Vector2(10, 10), 240, -160, 30, 50, Color(1, 1, 1), 0.1)
-	p.set_pose(Poses.get_pose("k", "wheels_slam_n"))
-	_slide("s", p.position.x + 70, 0.06, Tween.TRANS_QUAD)
-	await wait(0.06)
+	Fx.crescent(fxl, c, 300, -175, 35, 140, Color(0.93, 0.92, 0.9), 0.06)
+	Fx.crescent(fxl, c + Vector2(10, 10), 240, -160, 30, 50, Color(1, 1, 1), 0.08)
 	Sfx.play("boom")
 	Sfx.play("heavy")
 	var tip := p.prop_tip("F")
@@ -1673,23 +1667,6 @@ func _strike_stick_wheels(_side_: Dictionary, _dd: Dictionary) -> void:
 	_screen_flash(0.55)
 	_shake(26, 0.4)
 	_hitstop(0.14)
-
-
-## 칼끝에 힘이 모인다(작은 조각이 빨려 들어가고 반짝)
-func _charge_fx(at: Vector2) -> void:
-	for k in 10:
-		var d := Polygon2D.new()
-		var r := randf_range(4, 9)
-		d.polygon = PackedVector2Array([Vector2(-r, 0), Vector2(0, -r), Vector2(r, 0), Vector2(0, r)])
-		d.color = Color(0.1, 0.09, 0.08) if k % 2 else Color(0.95, 0.94, 0.9)
-		var from := at + Vector2.from_angle(randf() * TAU) * randf_range(90, 160)
-		d.position = from
-		d.z_index = 42
-		fxl.add_child(d)
-		var tw := d.create_tween()
-		tw.tween_property(d, "position", at, randf_range(0.25, 0.38)).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-		tw.tween_callback(d.queue_free)
-	Fx.ring(fxl, at, Color(1, 1, 1), 90, 10, 0.35, 5)
 
 
 ## 화면 전체가 하얗게 번쩍
