@@ -99,6 +99,17 @@ const K := {
 		"upperF": -78, "foreF": -10, "upperB": -64, "foreB": -24, "prop": "k_shotgun", "prop_rot": 88, "prop2": ""},
 	"shotgun_fire": {"lean": 2, "head": 4, "thighF": -48, "shinF": 36, "thighB": 50, "shinB": 4, "hip_dy": 10, "hip_dx": -18,
 		"upperF": -96, "foreF": -10, "upperB": -82, "foreB": -24, "prop": "k_shotgun", "prop_rot": 94, "prop2": ""},
+	# 휠즈 인더스트리: 대검을 뒤로 끌듯 낮게 잡고(ready), 뒤에서 머리 위로 천천히 들어 올렸다가(lift),
+	# 머리 위를 넘겨 낮게 파고들며 땅에 내리찍는다(slam). 칼이 위로 원을 그리도록 각도를 360도 넘겨 잡는다.
+	# slam_n은 slam과 똑같은 모습을 -180~180 범위 각도로 적은 것(찍은 뒤 이걸로 바꿔 놓고 풀어야 팔이 빙글 돌지 않는다)
+	"wheels_ready": {"lean": -10, "head": 6, "thighF": -20, "shinF": 30, "thighB": 30, "shinB": 20, "hip_dy": 12,
+		"upperF": 40, "foreF": -10, "upperB": 30, "foreB": -10, "prop": "k_greatsword", "prop_rot": 140, "prop2": ""},
+	"wheels_lift": {"lean": -20, "head": 10, "thighF": -30, "shinF": 6, "thighB": 18, "shinB": 4, "hip_dy": -6,
+		"upperF": 150, "foreF": 30, "upperB": 140, "foreB": 30, "prop": "k_greatsword", "prop_rot": 63, "prop2": ""},
+	"wheels_slam": {"lean": 28, "head": -12, "thighF": -72, "shinF": 74, "thighB": 62, "shinB": 0, "hip_dy": 26, "hip_dx": 20,
+		"upperF": 298, "foreF": -10, "upperB": 306, "foreB": -16, "prop": "k_greatsword", "prop_rot": 54, "prop2": ""},
+	"wheels_slam_n": {"lean": 28, "head": -12, "thighF": -72, "shinF": 74, "thighB": 62, "shinB": 0, "hip_dy": 26, "hip_dx": 20,
+		"upperF": -62, "foreF": -10, "upperB": -54, "foreB": -16, "prop": "k_greatsword", "prop_rot": 54, "prop2": ""},
 	# 합에서 지고 맞을 때: 웅크리고 두 팔을 얼굴 앞에 엇갈려 막는다
 	"hurt": {"lean": 6, "head": 6, "thighF": -30, "shinF": 30, "thighB": 26, "shinB": 14, "hip_dy": 10, "hip_dx": -10,
 		"upperF": -100, "foreF": -84, "upperB": -165, "foreB": 70, "prop": "", "prop2": "", "zB": 6},

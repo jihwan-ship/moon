@@ -1113,8 +1113,8 @@ func _rapid(side: Dictionary) -> bool:
 ## 합 하나가 끝나면 둘 다 맞닿는 자리로 돌아온다. fast면 쏘던 자세 그대로 상대만 금방 돌아온다
 func _reset_pair(fast := false) -> void:
 	if fast:
-		# 쏜 자세 그대로 잠깐 멈췄다가 다음 발. 상대만 제자리로 돌아온다
-		await wait(0.45)
+		# 원작처럼 쏜 자세 그대로 2초쯤 멈췄다가 다음 발. 상대만 제자리로 돌아온다
+		await wait(1.5)
 		var cx := (HOME["s"] + HOME["t"]) / 2.0
 		_slide("t", cx - _dir("t") * CONTACT, 0.15, Tween.TRANS_SINE)
 		if not T["broken"]:
@@ -1211,6 +1211,10 @@ func _strike(who: String, side: Dictionary, dd: Dictionary) -> void:
 		if anim == "r_logic":
 			if not _side(who)["broken"]:
 				await _strike_stick_logic(side, dd)
+			return
+		if anim == "r_wheels":
+			if not _side(who)["broken"]:
+				await _strike_stick_wheels(side, dd)
 			return
 		# 아직 정시우용 동작이 없는 공방은 기본 동작으로
 		anim = "stab" if dd["t"] == "pierce" else "butt"
@@ -1644,3 +1648,139 @@ func _strike_stick_logic(side: Dictionary, dd: Dictionary) -> void:
 	await wait(0.02)
 	# 총이 살짝 튀었다가 금방 겨눈 자세로
 	p.pose("pistol_ready" if first else "pistol_ready2", 0.1, Tween.TRANS_SINE)
+
+
+## 휠즈 인더스트리: 큰 대검이라 빠르게 끊지 않고 묵직하게. 뒤로 끌었다가, 천천히 들어 올리고,
+## 잠깐 멈췄다가 머리 위를 넘겨 한 번에 땅을 내리찍는다
+func _strike_stick_wheels(_side_: Dictionary, _dd: Dictionary) -> void:
+	var p: Puppet = pup["s"]
+	p.pose("wheels_ready", 0.25, Tween.TRANS_SINE)
+	_slide("s", p.position.x - 24, 0.25, Tween.TRANS_SINE)
+	Sfx.play("swing", -10)
+	await wait(0.3)
+	p.pose("wheels_lift", 0.42, Tween.TRANS_SINE, Tween.EASE_IN_OUT)
+	await wait(0.5)
+	Sfx.play("swing")
+	# 원작처럼 움직임은 적게, 대신 칼이 지나간 자리에 커다란 초승달 궤적을 남긴다
+	Fx.crescent(fxl, _body("s") + Vector2(150, 20), 260, -170, 30, 100, Color(0.93, 0.92, 0.9), 0.1)
+	p.pose("wheels_slam", 0.09, Tween.TRANS_QUAD, Tween.EASE_IN)
+	_slide("s", p.position.x + 70, 0.09, Tween.TRANS_QUAD)
+	await wait(0.09)
+	# 같은 모습을 -180~180 각도로 바꿔 둔다(풀 때 팔이 빙글 돌지 않게)
+	p.set_pose(Poses.get_pose("k", "wheels_slam_n"))
+	Sfx.play("boom")
+	Sfx.play("heavy")
+	var tip := p.prop_tip("F")
+	_ground_burst(Vector2(tip.x - 40, GROUND))
+	_shake(22, 0.35)
+	_hitstop(0.12)
+
+
+## 땅을 내리찍은 자리에서 파편이 솟구친다(원작의 검은 잉크 파편을 낙서 느낌으로)
+func _ground_burst(at: Vector2) -> void:
+	var ink := Color(0.1, 0.09, 0.08)
+	# 뾰족한 파편이 부채꼴로 크게 솟는다(흰 바탕에 검은 테두리, 낙서 느낌)
+	for k in 22:
+		var ang := deg_to_rad(randf_range(-165, -15))
+		var dir := Vector2(cos(ang), sin(ang))
+		var len := randf_range(140, 380) * (0.5 + 0.5 * absf(sin(ang)))
+		var w := randf_range(10, 22)
+		var nrm := Vector2(-dir.y, dir.x)
+		var pts := PackedVector2Array([nrm * w * 0.5, dir * len, -nrm * w * 0.5])
+		var sp := Node2D.new()
+		sp.position = at + Vector2(randf_range(-50, 50), 0)
+		sp.z_index = 43
+		sp.scale = Vector2.ZERO
+		var fill := Polygon2D.new()
+		fill.polygon = pts
+		fill.color = Color(0.95, 0.94, 0.9) if k % 3 else Color(0.55, 0.55, 0.55)
+		var edge := Line2D.new()
+		edge.points = pts
+		edge.closed = true
+		edge.width = 3.0
+		edge.default_color = ink
+		sp.add_child(fill)
+		sp.add_child(edge)
+		fxl.add_child(sp)
+		var tw := sp.create_tween()
+		tw.tween_property(sp, "scale", Vector2.ONE, randf_range(0.05, 0.1)).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_interval(randf_range(0.15, 0.3))
+		tw.set_parallel(true)
+		tw.tween_property(sp, "scale", Vector2(0.6, 1.15), 0.3)
+		tw.tween_property(sp, "modulate:a", 0.0, 0.3)
+		tw.chain().tween_callback(sp.queue_free)
+	# 위로 솟는 줄기
+	for k in 9:
+		var l := Line2D.new()
+		l.width = randf_range(4, 8)
+		l.default_color = ink
+		var x := at.x + randf_range(-90, 90)
+		var h := randf_range(120, 300) * (1.0 - absf(x - at.x) / 160.0)
+		l.points = PackedVector2Array([Vector2(x, at.y), Vector2(x + randf_range(-30, 30), at.y)])
+		l.z_index = 41
+		fxl.add_child(l)
+		var tw := l.create_tween()
+		var top := Vector2(x + randf_range(-40, 40), at.y - h)
+		tw.tween_method(func(v: float): l.points = PackedVector2Array([Vector2(x, at.y), Vector2(x, at.y).lerp(top, v)]), 0.0, 1.0, 0.12) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_interval(0.1)
+		tw.tween_property(l, "modulate:a", 0.0, 0.3)
+		tw.tween_callback(l.queue_free)
+	# 튀어 오르는 조각(포물선을 그리며 떨어진다)
+	for k in 30:
+		var c := Polygon2D.new()
+		var r := randf_range(8, 22)
+		c.polygon = PackedVector2Array([Vector2(-r, r * 0.4), Vector2(r * 0.2, -r), Vector2(r, r * 0.6)])
+		c.color = ink if k % 3 else Color(0.95, 0.93, 0.88)
+		c.position = at + Vector2(randf_range(-60, 60), -4)
+		c.rotation = randf() * TAU
+		c.z_index = 42
+		fxl.add_child(c)
+		var v := Vector2(randf_range(-260, 260), randf_range(-620, -260))
+		var start := c.position
+		var life := randf_range(0.55, 0.85)
+		var tw := c.create_tween().set_parallel(true)
+		tw.tween_method(func(t: float): c.position = start + v * t + Vector2(0, 900) * t * t, 0.0, life, life)
+		tw.tween_property(c, "rotation", c.rotation + randf_range(-8, 8), life)
+		tw.tween_property(c, "modulate:a", 0.0, 0.25).set_delay(life - 0.25)
+		tw.chain().tween_callback(c.queue_free)
+	# 흙먼지(삐뚤빼뚤한 동그라미가 옆으로 퍼진다)
+	for k in 6:
+		var d := Line2D.new()
+		d.width = 4.0
+		d.default_color = ink
+		d.closed = true
+		var pts := PackedVector2Array()
+		var rr := randf_range(16, 26)
+		for i in 10:
+			var ang := TAU * i / 10.0
+			pts.append(Vector2(cos(ang), sin(ang) * 0.7) * rr * randf_range(0.8, 1.2))
+		d.points = pts
+		d.position = at + Vector2(randf_range(-30, 30), -10)
+		d.z_index = 40
+		fxl.add_child(d)
+		var tw := d.create_tween().set_parallel(true)
+		var side := -1.0 if k % 2 else 1.0
+		tw.tween_property(d, "position", d.position + Vector2(side * randf_range(80, 180), randf_range(-50, -10)), 0.6) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_property(d, "scale", Vector2.ONE * randf_range(1.5, 2.2), 0.6)
+		tw.tween_property(d, "modulate:a", 0.0, 0.4).set_delay(0.2)
+		tw.chain().tween_callback(d.queue_free)
+	# 땅이 갈라진 금
+	for k in 4:
+		var cr := Line2D.new()
+		cr.width = 4.0
+		cr.default_color = ink
+		var dir := Vector2(cos(k * 0.9 - 1.3), 0.25 * sin(k * 1.7)).normalized() * (1 if k % 2 else -1)
+		var pts := PackedVector2Array([at])
+		var q := at
+		for i in 4:
+			q += dir * randf_range(30, 50) + Vector2(0, randf_range(-6, 6))
+			pts.append(q)
+		cr.points = pts
+		cr.z_index = 39
+		fxl.add_child(cr)
+		var tw := cr.create_tween()
+		tw.tween_interval(0.5)
+		tw.tween_property(cr, "modulate:a", 0.0, 0.5)
+		tw.tween_callback(cr.queue_free)
