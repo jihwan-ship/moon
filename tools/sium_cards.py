@@ -123,7 +123,7 @@ spark(p, 270, 40, n=6, r=24)
 p.save('mook')
 
 # 로직: 직접 그린 책장 그림(정시우가 샷건 쏘는 장면). 작게 줄어도 보이게 선을 굵게 한다
-def user_card(src, name):
+def user_card(src, name, rot=0):
     from scipy import ndimage
     im = Image.open(src).convert('RGBA')
     bg = Image.new('RGBA', im.size, (255, 255, 255, 255))
@@ -136,7 +136,11 @@ def user_card(src, name):
     out = np.zeros(line.shape + (4,), np.uint8)
     out[...] = (250, 248, 240, 255)
     out[line] = INK + (255,)
-    Image.fromarray(out, 'RGBA').save(OUT + name + '.png')
+    img = Image.fromarray(out, 'RGBA')
+    if rot:
+        # 납작한 그림은 책장 칸에서 너무 작아지므로 비스듬히 세운다
+        img = img.rotate(rot, expand=True, resample=Image.BICUBIC, fillcolor=(250, 248, 240, 255))
+    img.save(OUT + name + '.png')
 
 
 user_card('art_src/sium/card_logic.png', 'logic')
@@ -158,14 +162,8 @@ for x, y in ((60, 50), (240, 60), (150, 120)):
     p.line((x, y - 12), (x, y + 12), w=3)
 p.save('crystal')
 
-# 휠즈: 바퀴 달린 엄청 큰 대검
-p = Pen()
-p.poly((40, 120), (260, 60), (275, 110), (55, 165), fill=(150, 150, 160))
-p.loop(70, 150, 24, 24, w=5)
-p.loop(70, 150, 6, 6, w=4)
-p.line((30, 195), (60, 180), w=3)
-p.line((100, 200), (110, 180), w=3)
-p.save('wheels')
+# 휠즈: 직접 그린 대검 그림
+user_card('art_src/sium/greatsword.png', 'wheels', rot=-28)
 
 # 퓨리오소: 아홉 무기가 막 날아다니는 낙서
 p = Pen()
