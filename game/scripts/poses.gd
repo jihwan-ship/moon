@@ -102,6 +102,11 @@ const K := {
 	# 휠즈 인더스트리: 평소 자세에서 한 번에 바뀌는 내리찍은 자세(낮게 파고들어 대검이 땅에 닿는다)
 	"wheels_slam": {"lean": 28, "head": -12, "thighF": -72, "shinF": 74, "thighB": 62, "shinB": 0, "hip_dy": 26, "hip_dx": 20,
 		"upperF": -62, "foreF": -10, "upperB": -54, "foreB": -16, "prop": "k_greatsword", "prop_rot": 54, "prop2": ""},
+	# 묵 공방: 칼을 허리춤 뒤로 낮게 쥐고 웅크렸다가(ready), 눈 깜짝할 새 뽑아 앞으로 벤 자세(draw)로, 다시 ready로
+	"mook_ready": {"lean": 12, "head": -6, "thighF": -40, "shinF": 40, "thighB": 34, "shinB": 10, "hip_dy": 14,
+		"upperF": -20, "foreF": -60, "upperB": -10, "foreB": -70, "prop": "k_katana", "prop_rot": 233, "prop2": ""},
+	"mook_draw": {"lean": 18, "head": -8, "thighF": -60, "shinF": 50, "thighB": 50, "shinB": 0, "hip_dy": 18, "hip_dx": 16,
+		"upperF": -100, "foreF": -10, "upperB": 40, "foreB": -20, "prop": "k_katana", "prop_rot": 72, "prop2": ""},
 	# 합에서 지고 맞을 때: 웅크리고 두 팔을 얼굴 앞에 엇갈려 막는다
 	"hurt": {"lean": 6, "head": 6, "thighF": -30, "shinF": 30, "thighB": 26, "shinB": 14, "hip_dy": 10, "hip_dx": -10,
 		"upperF": -100, "foreF": -84, "upperB": -165, "foreB": 70, "prop": "", "prop2": "", "zB": 6},

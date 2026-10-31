@@ -1212,6 +1212,10 @@ func _strike(who: String, side: Dictionary, dd: Dictionary) -> void:
 			if not _side(who)["broken"]:
 				await _strike_stick_logic(side, dd)
 			return
+		if anim == "r_mook":
+			if not _side(who)["broken"]:
+				await _strike_stick_mook(side, dd)
+			return
 		if anim == "r_wheels":
 			if not _side(who)["broken"]:
 				await _strike_stick_wheels(side, dd)
@@ -1809,3 +1813,114 @@ func _ground_burst(at: Vector2) -> void:
 		tw.tween_interval(0.5)
 		tw.tween_property(cr, "modulate:a", 0.0, 0.5)
 		tw.tween_callback(cr.queue_free)
+
+
+## 묵 공방: 칼을 허리춤에 쥐고 웅크렸다가, 눈 깜짝할 새 뽑아 베고 바로 다시 넣는다(자세만 딱딱 바뀐다).
+## 상대 주위에 검기가 동그랗게 휘리릭 그려지고, 가는 빛줄기와 빛 방울이 남았다가 서서히 사라진다
+func _strike_stick_mook(_side_: Dictionary, _dd: Dictionary) -> void:
+	var p: Puppet = pup["s"]
+	p.set_pose(Poses.get_pose("k", "mook_ready"))
+	await wait(0.3)
+	Sfx.play("swing")
+	p.set_pose(Poses.get_pose("k", "mook_draw"))
+	_mook_fx(_body("t") + Vector2(0, 20))
+	await wait(0.12)
+	p.set_pose(Poses.get_pose("k", "mook_ready"))
+	Sfx.play("click", -2)
+	await wait(0.2)
+	Sfx.play("slash")
+	_screen_flash(0.3)
+	_shake(10, 0.2)
+
+
+func _mook_fx(c: Vector2) -> void:
+	var white := Color(1, 1, 1)
+	# 동그랗게 휘감는 검기: 가는 호가 각도를 바꿔 가며 빠르게 그려진다
+	for k in 7:
+		var r := randf_range(150, 240)
+		var a0 := k * 51.0 + randf_range(-15, 15)
+		_arc_line(c + Vector2(randf_range(-20, 20), randf_range(-20, 20)), r, a0, randf_range(150, 230), randf_range(4, 9), k * 0.035, 0.9)
+	# 크고 굵은 원 하나(마지막에 남는 큰 고리)
+	_arc_line(c, 270, -120, 300, 14, 0.2, 1.1)
+	# 상대를 가로지르는 가는 빛줄기
+	for k in 5:
+		var ang := deg_to_rad(randf_range(-40, 40) + (90.0 if k == 4 else 0.0))
+		var d := Vector2.from_angle(ang) * randf_range(380, 560)
+		var l := Line2D.new()
+		l.width = randf_range(2, 5)
+		l.default_color = white
+		l.z_index = 44
+		var o := c + Vector2(randf_range(-40, 40), randf_range(-40, 40))
+		l.points = PackedVector2Array([o, o])
+		fxl.add_child(l)
+		var tw := l.create_tween()
+		tw.tween_interval(0.08 + k * 0.03)
+		tw.tween_method(func(t: float): l.points = PackedVector2Array([o - d * t, o + d * t]), 0.0, 1.0, 0.06)
+		tw.tween_interval(0.25)
+		tw.tween_property(l, "modulate:a", 0.0, 0.8)
+		tw.tween_callback(l.queue_free)
+	# 가로로 번쩍이는 빛
+	var h := Line2D.new()
+	h.width = 10
+	h.default_color = white
+	h.points = PackedVector2Array([c + Vector2(-900, 0), c + Vector2(900, 0)])
+	h.z_index = 44
+	h.modulate.a = 0.0
+	fxl.add_child(h)
+	var htw := h.create_tween()
+	htw.tween_interval(0.28)
+	htw.tween_property(h, "modulate:a", 1.0, 0.03)
+	htw.tween_property(h, "width", 2.0, 0.5)
+	htw.parallel().tween_property(h, "modulate:a", 0.0, 0.6)
+	htw.tween_callback(h.queue_free)
+	# 빛 방울이 흩어졌다가 서서히 사라진다
+	for k in 16:
+		var o := Polygon2D.new()
+		var rr := randf_range(5, 14)
+		var pts := PackedVector2Array()
+		for i in 12:
+			pts.append(Vector2.from_angle(TAU * i / 12.0) * rr)
+		o.polygon = pts
+		o.color = Color(1, 1, 1, 0.9)
+		o.position = c + Vector2(randf_range(-320, 320), randf_range(-220, 160))
+		o.z_index = 43
+		o.scale = Vector2.ZERO
+		fxl.add_child(o)
+		var tw := o.create_tween()
+		tw.tween_interval(0.15 + randf() * 0.25)
+		tw.tween_property(o, "scale", Vector2.ONE, 0.12)
+		tw.set_parallel(true)
+		tw.tween_property(o, "position", o.position + Vector2(randf_range(-40, 40), randf_range(-70, -20)), 1.2)
+		tw.tween_property(o, "modulate:a", 0.0, 1.0).set_delay(0.3)
+		tw.chain().tween_callback(o.queue_free)
+
+
+## 가는 호(검기). a0부터 sweep도만큼 빠르게 그려지고 잠깐 남았다가 life초에 걸쳐 서서히 사라진다
+func _arc_line(c: Vector2, r: float, a0: float, sweep: float, width: float, delay: float, life: float) -> void:
+	var l := Line2D.new()
+	l.width = width
+	l.default_color = Color(1, 1, 1)
+	l.z_index = 44
+	l.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	l.end_cap_mode = Line2D.LINE_CAP_ROUND
+	# 끝으로 갈수록 가늘게
+	var curve := Curve.new()
+	curve.add_point(Vector2(0, 0.2))
+	curve.add_point(Vector2(0.5, 1.0))
+	curve.add_point(Vector2(1, 0.2))
+	l.width_curve = curve
+	fxl.add_child(l)
+	var draw := func(t: float) -> void:
+		var pts := PackedVector2Array()
+		var n := maxi(2, int(40 * t))
+		for i in n + 1:
+			var a := deg_to_rad(a0 + sweep * t * i / n)
+			pts.append(c + Vector2(cos(a), sin(a) * 0.85) * r)
+		l.points = pts
+	draw.call(0.02)
+	var tw := l.create_tween()
+	tw.tween_interval(delay)
+	tw.tween_method(draw, 0.02, 1.0, 0.09).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(0.2)
+	tw.tween_property(l, "modulate:a", 0.0, life)
+	tw.tween_callback(l.queue_free)

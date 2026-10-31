@@ -74,6 +74,26 @@ def spark(pen, x, y, n=5, r=16):
         pen.line((x + math.cos(a) * r * 0.4, y + math.sin(a) * r * 0.4), (x + math.cos(a) * r, y + math.sin(a) * r), w=3)
 
 
+def user_card(src, name, rot=0):
+    from scipy import ndimage
+    im = Image.open(src).convert('RGBA')
+    bg = Image.new('RGBA', im.size, (255, 255, 255, 255))
+    bg.alpha_composite(im)
+    dark = np.array(bg.convert('L')) < 128
+    ys, xs = np.where(dark)
+    m = 14
+    box = (max(xs.min() - m, 0), max(ys.min() - m, 0), min(xs.max() + m, im.width), min(ys.max() + m, im.height))
+    line = ndimage.binary_dilation(dark, iterations=2)[box[1]:box[3], box[0]:box[2]]
+    out = np.zeros(line.shape + (4,), np.uint8)
+    out[...] = (250, 248, 240, 255)
+    out[line] = INK + (255,)
+    img = Image.fromarray(out, 'RGBA')
+    if rot:
+        # 납작한 그림은 책장 칸에서 너무 작아지므로 비스듬히 세운다
+        img = img.rotate(rot, expand=True, resample=Image.BICUBIC, fillcolor=(250, 248, 240, 255))
+    img.save(OUT + name + '.png')
+
+
 random.seed(7)
 
 # 느티나무: 도끼와 메이스를 X자로
@@ -113,35 +133,10 @@ for k in range(4):
     p.line((40 + k * 30, 120 + k * 10), (10 + k * 30, 135 + k * 10), w=3)
 p.save('allas')
 
-# 묵: 칼집에서 뽑는 칼과 번쩍
-p = Pen()
-p.line((40, 160), (130, 120), w=12, fill=(60, 50, 50))
-p.line((130, 120), (280, 40), w=5)
-p.line((130, 120), (285, 48), w=3)
-p.line((120, 105), (135, 135), w=6)
-spark(p, 270, 40, n=6, r=24)
-p.save('mook')
+# 묵: 직접 그린 책장 그림
+user_card('art_src/sium/card_mook.png', 'mook')
 
 # 로직: 직접 그린 책장 그림(정시우가 샷건 쏘는 장면). 작게 줄어도 보이게 선을 굵게 한다
-def user_card(src, name, rot=0):
-    from scipy import ndimage
-    im = Image.open(src).convert('RGBA')
-    bg = Image.new('RGBA', im.size, (255, 255, 255, 255))
-    bg.alpha_composite(im)
-    dark = np.array(bg.convert('L')) < 128
-    ys, xs = np.where(dark)
-    m = 14
-    box = (max(xs.min() - m, 0), max(ys.min() - m, 0), min(xs.max() + m, im.width), min(ys.max() + m, im.height))
-    line = ndimage.binary_dilation(dark, iterations=2)[box[1]:box[3], box[0]:box[2]]
-    out = np.zeros(line.shape + (4,), np.uint8)
-    out[...] = (250, 248, 240, 255)
-    out[line] = INK + (255,)
-    img = Image.fromarray(out, 'RGBA')
-    if rot:
-        # 납작한 그림은 책장 칸에서 너무 작아지므로 비스듬히 세운다
-        img = img.rotate(rot, expand=True, resample=Image.BICUBIC, fillcolor=(250, 248, 240, 255))
-    img.save(OUT + name + '.png')
-
 
 user_card('art_src/sium/card_logic.png', 'logic')
 

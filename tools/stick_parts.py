@@ -1,6 +1,6 @@
 """직접 그린 쫄라맨 정시우 그림으로 인형 부위(k_*)를 만든다.
 머리와 무기는 그림에서 오려 내고(흰 바탕은 투명하게, 선 안쪽 흰색은 남긴다), 몸과 팔다리는 같은 굵기의 선으로 그린다.
-입력: art_src/sium/{sium,pistol,shotgun,greatsword}.png  출력: game/art/parts/k_*.png, game/art/parts.json에 추가
+입력: art_src/sium/{sium,pistol,shotgun,greatsword,katana}.png  출력: game/art/parts/k_*.png, game/art/parts.json에 추가
 사용: python3 tools/stick_parts.py
 """
 import json
@@ -103,11 +103,14 @@ ImageDraw.Draw(img).line([(4 * S, 6 * S), (24 * S, 6 * S)], fill=(20, 20, 20, 25
 save('k_boot', img, -10, -6)
 
 # 무기: 원본은 총구(칼날)가 왼쪽. 좌우를 뒤집어 총구가 앞(+x)을 보게 하고, 손잡이를 피벗으로
-WEAPONS = {'pistol': ((245, 128), 0.24), 'shotgun': ((262, 128), 0.42), 'greatsword': ((295, 122), 0.55)}
-for name, ((gx, gy), wf) in WEAPONS.items():
+# 이름: (원본에서 손잡이 위치, 크기, 뒤집기). 묵 공방 칼은 처음부터 칼날이 오른쪽이라 뒤집지 않는다
+WEAPONS = {'pistol': ((245, 128), 0.24, True), 'shotgun': ((262, 128), 0.42, True), 'greatsword': ((295, 122), 0.55, True),
+           'katana': ((100, 130), 0.42, False)}
+for name, ((gx, gy), wf, flip) in WEAPONS.items():
     img, bb = cutout(os.path.join(SRC, name + '.png'), thicken=2)
-    img = img.transpose(Image.FLIP_LEFT_RIGHT)
-    gx2 = (bb[2] - gx)          # 뒤집은 뒤 손잡이 x(오려낸 그림 기준)
+    if flip:
+        img = img.transpose(Image.FLIP_LEFT_RIGHT)
+    gx2 = (bb[2] - gx) if flip else (gx - bb[0])   # 손잡이 x(오려낸 그림 기준)
     gy2 = gy - bb[1]
     k = F * wf
     big = img.resize((int(img.width * k * S), int(img.height * k * S)), Image.LANCZOS)
