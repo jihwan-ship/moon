@@ -252,7 +252,7 @@ func _build_ui() -> void:
 	root.add_child(lines)
 	# 손패
 	hand_box = Control.new()
-	hand_box.position = Vector2(0, 580)
+	hand_box.position = Vector2(0, 540)
 	hand_box.size = Vector2(1280, 208)
 	hand_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(hand_box)
