@@ -1,5 +1,5 @@
 """엄지척 아재(짬타이거 대신)와 직접 그린 총구 이펙트를 게임용 그림으로 만든다.
-art_src/sium/thumb.png, gunfx.png, crystal_fx.png -> game/art/sium/"""
+art_src/sium/thumb.png, gunfx.png -> game/art/sium/"""
 import numpy as np
 from PIL import Image
 from scipy import ndimage
@@ -47,26 +47,5 @@ def gunfx():
     print('gunfx', img.size)
 
 
-def crescent():
-    """크리스탈 아틀리에 이펙트: 직접 그린 초승달. 안을 하얗게 채우고 검은 테두리를 굵게"""
-    im = Image.open(SRC + 'crystal_fx.png').convert('L')
-    dark = np.array(im) < 128
-    line = ndimage.binary_dilation(dark, iterations=4)
-    # 가장자리에 찍힌 점 같은 부스러기는 버리고 초승달 선만 남긴다
-    lab, n = ndimage.label(line)
-    sizes = ndimage.sum(line, lab, range(1, n + 1))
-    line = lab == (np.argmax(sizes) + 1)
-    inside = ndimage.binary_fill_holes(line) & ~line
-    h, w = dark.shape
-    out = np.zeros((h, w, 4), np.uint8)
-    out[inside] = (250, 250, 248, 235)
-    out[line] = (16, 14, 14, 255)
-    img = Image.fromarray(out, 'RGBA')
-    img = img.crop(img.getbbox())
-    img.save(OUT + 'crescent.png')
-    print('crescent', img.size)
-
-
 thumb()
 gunfx()
-crescent()

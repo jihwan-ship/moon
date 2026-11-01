@@ -2154,26 +2154,43 @@ func _streak(a: Vector2, b: Vector2) -> void:
 func _ink_cross(c: Vector2) -> void:
 	fx_hold += 1
 	get_tree().create_timer(1.8, true, false, false).timeout.connect(func(): fx_hold -= 1)
-	# 직접 그린 초승달 두 개가 X자로 엇갈린다(하나는 좌우를 뒤집어서)
 	for k in 2:
-		var cr := Sprite2D.new()
-		cr.texture = load("res://art/sium/crescent.png")
-		cr.position = c + Vector2(25 if k == 0 else -25, -30)
-		cr.rotation_degrees = -40.0 if k == 0 else 40.0
-		cr.flip_h = k == 1
-		cr.z_index = 44
-		var sc := 2.2
-		cr.scale = Vector2(sc * 0.5, sc * 0.7)
-		cr.modulate.a = 0.0
-		fxl.add_child(cr)
-		var tw := cr.create_tween()
+		var root := Node2D.new()
+		root.position = c
+		root.rotation_degrees = -35.0 if k == 0 else 35.0
+		root.z_index = 44
+		fxl.add_child(root)
+		var rx := 340.0
+		var ry := 180.0
+		var layers: Array[Line2D] = []
+		for layer in 3:
+			var l := Line2D.new()
+			l.width = [60.0, 36.0, 7.0][layer]
+			l.default_color = [Color(0.12, 0.11, 0.11, 0.55), Color(0.08, 0.07, 0.07, 0.95), Color(1, 1, 1, 0.9)][layer]
+			var curve := Curve.new()
+			curve.add_point(Vector2(0, 0.05))
+			curve.add_point(Vector2(0.45, 1.0))
+			curve.add_point(Vector2(1, 0.05))
+			l.width_curve = curve
+			root.add_child(l)
+			layers.append(l)
+		var a0 := 200.0 if k == 0 else 160.0
+		var sweep := 230.0 if k == 0 else -230.0
+		var draw := func(t: float) -> void:
+			var pts := PackedVector2Array()
+			var n := maxi(2, int(40 * t))
+			for i in n + 1:
+				var ang := deg_to_rad(a0 + sweep * t * i / n)
+				pts.append(Vector2(cos(ang) * rx, sin(ang) * ry))
+			for l in layers:
+				l.points = pts
+		draw.call(0.02)
+		var tw := root.create_tween()
 		tw.tween_interval(k * 0.06)
-		tw.tween_property(cr, "modulate:a", 1.0, 0.02)
-		tw.parallel().tween_property(cr, "scale", Vector2.ONE * sc, 0.1).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_method(draw, 0.02, 1.0, 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 		tw.tween_interval(0.5)
-		tw.tween_property(cr, "modulate:a", 0.0, 0.9)
-		tw.parallel().tween_property(cr, "scale", Vector2.ONE * sc * 1.08, 0.9)
-		tw.tween_callback(cr.queue_free)
+		tw.tween_property(root, "modulate:a", 0.0, 0.9)
+		tw.tween_callback(root.queue_free)
 	# 먹물 방울
 	for k in 22:
 		var dot := Polygon2D.new()
