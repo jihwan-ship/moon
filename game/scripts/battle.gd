@@ -2271,8 +2271,12 @@ func _strike_stick_durandal(side: Dictionary, _dd: Dictionary) -> void:
 	p.set_pose(Poses.get_pose("k", "durandal_up" if up else "durandal_down"))
 	fx_hold += 1
 	get_tree().create_timer(1.6, true, false, false).timeout.connect(func(): fx_hold -= 1)
-	var mc := _body("s") + Vector2(110, 0)
-	_durandal_moon(mc, up)
+	# 원작: 1타는 상대를 감싸며 위에서 먼 쪽을 돌아 아래까지 내려오는 궤적,
+	# 2타는 가까운 쪽 아래에서 상대 머리 위를 넘어가는 아치. 가는 줄 여러 개가 긁힌 듯 겹친다
+	if up:
+		_scratch_sweep(tgt + Vector2(0, 30), 290, 195.0, 345.0)
+	else:
+		_scratch_sweep(tgt + Vector2(0, 10), 270, -70.0, 160.0)
 	_doodle_pow(tgt)
 	await wait(0.08)
 	Sfx.play("slash")
@@ -2280,25 +2284,42 @@ func _strike_stick_durandal(side: Dictionary, _dd: Dictionary) -> void:
 	_hitstop(0.08)
 
 
-## 직접 그린 초승달 그림. 1타는 위에서 아래로, 2타는 위아래를 뒤집어 아래에서 위로 쭉 펼쳐진다
-func _durandal_moon(c: Vector2, up: bool) -> void:
-	var tex: Texture2D = load("res://art/sium/durandal_fx.png")
-	var sc := 440.0 / tex.get_height()
-	var m := Sprite2D.new()
-	m.texture = tex
-	m.centered = false
-	m.flip_v = up
-	# 펼쳐지기 시작하는 끝(1타는 위, 2타는 아래)을 기준점으로
-	m.offset = Vector2(-tex.get_width() * 0.35, -tex.get_height() if up else 0.0)
-	m.position = c + Vector2(0, 220.0 if up else -220.0)
-	m.scale = Vector2(sc, 0.05)
-	m.z_index = 44
-	fxl.add_child(m)
-	var tw := m.create_tween()
-	tw.tween_property(m, "scale:y", sc, 0.08).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	tw.tween_interval(0.5)
-	tw.tween_property(m, "modulate:a", 0.0, 0.6)
-	tw.tween_callback(m.queue_free)
+## 긁힌 듯한 궤적: 삐뚤빼뚤한 가는 줄(흰 줄, 검은 줄 섞어서) 여러 개가 a0에서 a1 쪽으로 빠르게 그려지고
+## 잠깐 남았다가 천천히 사라진다(대충 그린 낙서 느낌)
+func _scratch_sweep(c: Vector2, r: float, a0: float, a1: float) -> void:
+	for k in 15:
+		var l := Line2D.new()
+		var white := k % 3 != 2
+		l.width = randf_range(3.0, 8.0) if white else randf_range(2.5, 4.5)
+		l.default_color = Color(0.95, 0.95, 0.97) if white else Color(0.08, 0.07, 0.07)
+		var curve := Curve.new()
+		curve.add_point(Vector2(0, 0.1))
+		curve.add_point(Vector2(0.5, 1.0))
+		curve.add_point(Vector2(1, 0.1))
+		l.width_curve = curve
+		l.z_index = 44
+		fxl.add_child(l)
+		var rr := r + randf_range(-40, 40)
+		var s0 := a0 + randf_range(-10, 25)
+		var s1 := a1 - randf_range(-10, 30)
+		var off := Vector2(randf_range(-15, 15), randf_range(-12, 12))
+		var jit := []
+		for i in 31:
+			jit.append(randf_range(-5, 5))
+		var draw := func(t: float) -> void:
+			var n := maxi(2, int(30 * t))
+			var pts := PackedVector2Array()
+			for i in n + 1:
+				var ang := deg_to_rad(lerpf(s0, s1, t * i / n))
+				pts.append(c + off + Vector2(cos(ang), sin(ang) * 0.9) * (rr + jit[i]))
+			l.points = pts
+		draw.call(0.03)
+		var tw := l.create_tween()
+		tw.tween_interval(k * 0.012)
+		tw.tween_method(draw, 0.03, 1.0, 0.1).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_interval(0.35)
+		tw.tween_property(l, "modulate:a", 0.0, 0.8)
+		tw.tween_callback(l.queue_free)
 
 
 ## 맞은 자리에 "팍" 하는 삐죽삐죽 별(흰 속, 검은 테두리)
