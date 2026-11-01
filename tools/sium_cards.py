@@ -107,15 +107,8 @@ for a in range(0, 360, 60):
     p.line((95 + math.cos(r) * 26, 45 + math.sin(r) * 24), (95 + math.cos(r) * 40, 45 + math.sin(r) * 38), w=4)
 p.save('zelkova')
 
-# 랑아: 손톱 달린 장갑과 단검
-p = Pen()
-p.loop(110, 130, 45, 40, w=5)
-for k in range(3):
-    p.line((90 + k * 22, 95), (80 + k * 26, 30), w=4)
-p.line((200, 180), (250, 60), w=5)
-p.poly((240, 75), (262, 20), (262, 80), fill=(200, 200, 210))
-spark(p, 70, 40)
-p.save('ranga')
+# 랑아: 직접 그린 책장 그림
+user_card('art_src/sium/card_ranga.png', 'ranga')
 
 # 늙은소년: 방패 같은 큰 망치
 p = Pen()
