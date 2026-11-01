@@ -33,6 +33,7 @@ var test_mode := ""
 
 # 노드
 var cam: Camera2D
+var crystal_hold := false       # 크리스탈 첫 베기 뒤: 정시우는 상대 오른쪽에 머문다(두 번째는 거기서 왼쪽으로)
 var fx_hold := 0                 # 아직 사라지는 중인 긴 이펙트 수(다 사라질 때까지 합 화면을 유지한다)
 var world: Node2D
 var fxl: Node2D
@@ -879,6 +880,7 @@ func _enter_combat() -> void:
 
 
 func _leave_combat() -> void:
+	crystal_hold = false
 	while fx_hold > 0:
 		await wait(0.05)
 	banner_s.visible = false
@@ -1130,7 +1132,8 @@ func _rapid(side: Dictionary) -> bool:
 
 ## 합 하나가 끝나면 둘 다 맞닿는 자리로 돌아온다. fast면 쏘던 자세 그대로 상대만 금방 돌아온다
 func _reset_pair(fast := false) -> void:
-	_face_right()
+	if not crystal_hold:
+		_face_right()
 	if fast:
 		# 원작처럼 쏜 자세 그대로 1초쯤 멈췄다가 다음 발. 상대만 제자리로 돌아온다
 		await wait(0.55)
@@ -1143,6 +1146,8 @@ func _reset_pair(fast := false) -> void:
 	await wait(0.25)
 	var c := (HOME["s"] + HOME["t"]) / 2.0
 	for who in ["s", "t"]:
+		if who == "s" and crystal_hold:
+			continue
 		if not _side(who)["broken"]:
 			pup[who].pose("idle", 0.2)
 		_slide(who, c - _dir(who) * CONTACT, 0.2, Tween.TRANS_SINE)
@@ -2073,16 +2078,15 @@ func _face_right() -> void:
 ## 지나간 자리에 먹물 호 두 개가 X자로 엇갈린다. 두 번째 베기는 반대편에서 돌아오며 X자 섬광이 터진다
 func _strike_stick_crystal(side: Dictionary, dd: Dictionary) -> void:
 	var p: Puppet = pup["s"]
-	var q: Array = side["q"]
-	var nth := 0
-	for k in q.find(dd):
-		if _is_atk(q[k]):
-			nth += 1
+	# 주사위 두 개가 똑같아 위치로는 구분이 안 되므로 몇 번째 베기인지 따로 센다
+	var nth: int = side.get("strikes", 0)
+	side["strikes"] = nth + 1
 	var tgt := _body("t")
 	var tx: float = pup["t"].position.x
-	var back := nth % 2 == 1          # 두 번째 베기: 반대편에서 돌아온다
+	var back := nth % 2 == 1          # 첫 베기는 오른쪽으로, 두 번째는 오른쪽에서 왼쪽으로 관통
 	var from := p.position.x
 	var to := tx - 170.0 if back else tx + 170.0
+	crystal_hold = not back
 	if back:
 		p.scale.x = -absf(p.scale.x)   # 왼쪽을 보고
 	await wait(0.12)
@@ -2096,7 +2100,8 @@ func _strike_stick_crystal(side: Dictionary, dd: Dictionary) -> void:
 	_ink_cross(tgt + Vector2(0, 10))
 	if back:
 		_x_flash(tgt)
-		p.scale.x = absf(p.scale.x)
+	else:
+		p.scale.x = -absf(p.scale.x)   # 지나간 뒤 돌아서서 상대를 본다
 	_shake(12, 0.25)
 	_hitstop(0.08)
 
