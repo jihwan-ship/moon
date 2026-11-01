@@ -2271,8 +2271,15 @@ func _strike_stick_durandal(side: Dictionary, _dd: Dictionary) -> void:
 	Sfx.play("swing")
 	p.set_pose(Poses.get_pose("k", "durandal_2" if up else "durandal_1"))
 	var me := _body("s")
-	var R := maxf(220.0, _body("t").x - 30.0 - me.x)
-	_doodle_moon_big(me, R, 50.0, -16.0 if up else 16.0)
+	# 원은 정시우 조금 뒤를 중심으로 크게, 초승달은 상대에 걸칠 만큼
+	var cen := me + Vector2(-90, 0)
+	var R := maxf(320.0, _body("t").x + 10.0 - cen.x)
+	var turn := -16.0 if up else 16.0
+	_doodle_moon_big(cen, R, 85.0, turn)
+	# 뒤따르는 잔상 초승달 두 겹(조금 작고 흐리게, 살짝 늦게)
+	get_tree().create_timer(0.04).timeout.connect(func(): _doodle_moon_big(cen, R * 0.86, 45.0, turn * 1.3, 0.55))
+	get_tree().create_timer(0.08).timeout.connect(func(): _doodle_moon_big(cen, R * 0.74, 28.0, turn * 1.6, 0.35))
+	_doodle_flair(cen, R, turn)
 	await wait(0.06)
 	Sfx.play("slash")
 	_shake(10, 0.2)
@@ -2281,17 +2288,18 @@ func _strike_stick_durandal(side: Dictionary, _dd: Dictionary) -> void:
 
 ## 크게 휜 낙서 초승달 ")": c를 중심으로 반지름 r, 가운데 두께 thick. 흰 속 + 삐뚤빼뚤한 검은 테두리.
 ## 바로 나타나 잠깐 버틴 뒤 turn도 돌며 사라진다
-func _doodle_moon_big(c: Vector2, r: float, thick: float, turn: float) -> void:
+func _doodle_moon_big(c: Vector2, r: float, thick: float, turn: float, alpha := 1.0) -> void:
 	var root := Node2D.new()
 	root.position = c
 	root.z_index = 44
+	root.modulate.a = alpha
 	fxl.add_child(root)
 	var n := 30
 	var outer := PackedVector2Array()
 	var inner := PackedVector2Array()
 	for i in n + 1:
 		var u := float(i) / n
-		var dir := Vector2.from_angle(deg_to_rad(lerpf(-95.0, 95.0, u)))
+		var dir := Vector2.from_angle(deg_to_rad(lerpf(-100.0, 100.0, u)))
 		var w := sin(PI * u)
 		outer.append(dir * (r + randf_range(-5, 5) * w))
 		if i > 0 and i < n:
@@ -2316,3 +2324,74 @@ func _doodle_moon_big(c: Vector2, r: float, thick: float, turn: float) -> void:
 	tw.tween_property(root, "rotation_degrees", turn, 0.45)
 	tw.tween_property(root, "modulate:a", 0.0, 0.45)
 	tw.chain().tween_callback(root.queue_free)
+
+
+## 낙서 느낌을 지키면서 화려하게: 초승달 바깥으로 삐친 붓 자국, 날아가는 먹물 방울, 반짝이 십자, 안쪽 속도선
+func _doodle_flair(c: Vector2, r: float, turn: float) -> void:
+	var ink := Color(0.08, 0.07, 0.07)
+	var root := Node2D.new()
+	root.position = c
+	root.z_index = 45
+	fxl.add_child(root)
+	# 바깥으로 삐친 붓 자국(흰 속 검은 테두리 짧은 획)
+	for k in 14:
+		var ang := deg_to_rad(randf_range(-90, 90))
+		var dir := Vector2.from_angle(ang)
+		var r0 := r + randf_range(5, 20)
+		var pts := PackedVector2Array([dir * r0, dir * (r0 + randf_range(50, 110)) + dir.orthogonal() * randf_range(-14, 14)])
+		for layer in 2:
+			var l := Line2D.new()
+			l.points = pts
+			l.width = 13.0 if layer == 0 else 6.0
+			l.default_color = ink if layer == 0 else Color(1, 1, 1)
+			l.begin_cap_mode = Line2D.LINE_CAP_ROUND
+			l.end_cap_mode = Line2D.LINE_CAP_ROUND
+			root.add_child(l)
+	# 안쪽 속도선(가는 검은 호 몇 줄)
+	for k in 5:
+		var rr := r - randf_range(110, 200)
+		var a0 := randf_range(-80, -30)
+		var a1 := randf_range(30, 80)
+		var pts := PackedVector2Array()
+		for i in 17:
+			pts.append(Vector2.from_angle(deg_to_rad(lerpf(a0, a1, i / 16.0))) * (rr + randf_range(-4, 4)))
+		var l := Line2D.new()
+		l.points = pts
+		l.width = randf_range(4.0, 7.0)
+		l.default_color = Color(1, 1, 1, 0.85)
+		root.add_child(l)
+	# 반짝이 십자(낙서 별)
+	for k in 6:
+		var pos := Vector2.from_angle(deg_to_rad(randf_range(-85, 85))) * (r + randf_range(-60, 70))
+		var sz := randf_range(20, 38)
+		for d in [Vector2(1, 0), Vector2(0, 1)]:
+			for layer in 2:
+				var l := Line2D.new()
+				l.points = PackedVector2Array([pos - d * sz, pos + d * sz])
+				l.width = 11.0 if layer == 0 else 5.0
+				l.default_color = ink if layer == 0 else Color(1, 1, 1)
+				root.add_child(l)
+	var tw := root.create_tween()
+	tw.tween_interval(0.35)
+	tw.set_parallel(true)
+	tw.tween_property(root, "rotation_degrees", turn, 0.5)
+	tw.tween_property(root, "modulate:a", 0.0, 0.5)
+	tw.chain().tween_callback(root.queue_free)
+	# 날아가는 먹물 방울
+	for k in 16:
+		var dot := Polygon2D.new()
+		var rr := randf_range(7, 18)
+		var pts := PackedVector2Array()
+		for i in 7:
+			pts.append(Vector2.from_angle(TAU * i / 7.0) * rr * randf_range(0.7, 1.25))
+		dot.polygon = pts
+		dot.color = ink if k % 3 else Color(1, 1, 1)
+		var ang := deg_to_rad(randf_range(-90, 90))
+		var start := c + Vector2.from_angle(ang) * (r + randf_range(-20, 20))
+		dot.position = start
+		dot.z_index = 45
+		fxl.add_child(dot)
+		var tw2 := dot.create_tween().set_parallel(true)
+		tw2.tween_property(dot, "position", start + Vector2.from_angle(ang) * randf_range(60, 160), 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw2.tween_property(dot, "modulate:a", 0.0, 0.4).set_delay(0.3)
+		tw2.chain().tween_callback(dot.queue_free)
