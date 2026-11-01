@@ -2256,55 +2256,64 @@ func _x_flash(c: Vector2) -> void:
 		tw.chain().tween_callback(o.queue_free)
 
 
-## 뒤랑달: 원작처럼 자세만 딱딱 바뀐다. 1타는 크게 내리베며 커다란 하얀 초승달과 섬광,
-## 2타는 올려치며 상대를 감싸는 은빛 고리가 여러 겹 남았다가 천천히 사라진다
+## 뒤랑달(영상 2분 14초): 원작처럼 자세만 딱딱 바뀐다. 베는 순간 상대 자리에서 하얀 섬광이 터지고,
+## 정시우 앞에 커다란 하얀 초승달이 생겼다가 가는 은빛 호 여러 줄로 부서지며 천천히 사라진다.
+## 상대를 가르는 빛줄기는 1타(횡베기)는 위에서 아래로, 2타(올려치기)는 아래에서 위로
 func _strike_stick_durandal(side: Dictionary, _dd: Dictionary) -> void:
 	var p: Puppet = pup["s"]
 	var nth: int = side.get("strikes", 0)
 	side["strikes"] = nth + 1
+	var up := nth % 2 == 1
 	var tgt := _body("t")
 	await wait(0.12)
 	Sfx.play("swing")
-	if nth % 2 == 0:
-		p.set_pose(Poses.get_pose("k", "durandal_down"))
-		_burst_flash(_body("s") + Vector2(120, 0), 0.7)
-		# 위에서 아래로 크게 내리벤 궤적(밝은 초승달 두 겹)
-		Fx.crescent(fxl, tgt + Vector2(-60, 0), 230, -80, 90, 110, Color(1, 1, 1), 0.06)
-		Fx.crescent(fxl, tgt + Vector2(-50, 10), 200, -70, 80, 40, Color(0.85, 0.85, 0.85), 0.08)
-		_ink_trail(tgt + Vector2(-60, 0), 230, -80, 90)
-	else:
-		p.set_pose(Poses.get_pose("k", "durandal_up"))
-		_burst_flash(tgt, 0.9)
-		_screen_flash(0.3)
-		# 아래에서 위로 올려친 궤적: 상대를 감싸는 은빛 고리 여러 겹
-		fx_hold += 1
-		get_tree().create_timer(1.8, true, false, false).timeout.connect(func(): fx_hold -= 1)
-		for k in 4:
-			_ring_fx(tgt + Vector2(randf_range(-20, 20), randf_range(-15, 15)), 230 - k * 25, 200 - k * 20, -15 + k * 12, k * 0.05)
-		_ink_trail(tgt, 220, 120, -60)
+	p.set_pose(Poses.get_pose("k", "durandal_up" if up else "durandal_down"))
+	fx_hold += 1
+	get_tree().create_timer(1.8, true, false, false).timeout.connect(func(): fx_hold -= 1)
+	_burst_flash(tgt, 1.0)
+	_screen_flash(0.25)
+	# 정시우 앞의 커다란 초승달(볼록한 쪽이 상대를 향한다)
+	var mc := _body("s") + Vector2(110, 0)
+	Fx.crescent(fxl, mc, 230, -120, 120, 90, Color(1, 1, 1), 0.06)
+	_silver_arcs(mc, 230, -120, 120)
+	# 상대를 가르는 빛줄기
+	_light_line(tgt, -62.0 if up else 58.0, 420, 6, 0.0, 0.5)
 	await wait(0.06)
 	Sfx.play("slash")
 	_shake(12, 0.22)
 	_hitstop(0.08)
 
 
-## 칼이 지나간 호를 따라 먹물 자국이 남는다
-func _ink_trail(c: Vector2, r: float, a0: float, a1: float) -> void:
-	for k in 18:
-		var t := randf()
-		var ang := deg_to_rad(lerpf(a0, a1, t))
-		var pos := c + Vector2(cos(ang), sin(ang)) * (r + randf_range(-30, 20))
-		var d := Polygon2D.new()
-		var rr := randf_range(4, 12)
+## 초승달이 부서져 남는 가는 은빛 호 여러 줄. 조금씩 돌며 천천히 사라진다
+func _silver_arcs(c: Vector2, r: float, a0: float, a1: float) -> void:
+	for k in 5:
+		var root := Node2D.new()
+		root.position = c + Vector2(randf_range(-12, 12), randf_range(-12, 12))
+		root.z_index = 44
+		fxl.add_child(root)
+		var l := Line2D.new()
+		l.width = randf_range(2.5, 6.0)
+		l.default_color = Color(0.92, 0.92, 0.95)
+		var curve := Curve.new()
+		curve.add_point(Vector2(0, 0.0))
+		curve.add_point(Vector2(0.5, 1.0))
+		curve.add_point(Vector2(1, 0.0))
+		l.width_curve = curve
+		var rr := r + randf_range(-30, 25)
+		var s0 := a0 + randf_range(0, 40)
+		var s1 := a1 - randf_range(0, 40)
 		var pts := PackedVector2Array()
-		for i in 7:
-			pts.append(Vector2.from_angle(TAU * i / 7.0) * rr * randf_range(0.6, 1.3))
-		d.polygon = pts
-		d.color = Color(0.08, 0.07, 0.07, 0.9)
-		d.position = pos
-		d.z_index = 43
-		fxl.add_child(d)
-		var tw := d.create_tween().set_parallel(true)
-		tw.tween_property(d, "position", pos + Vector2(randf_range(-20, 40), randf_range(10, 50)), 1.0)
-		tw.tween_property(d, "modulate:a", 0.0, 0.7).set_delay(0.4)
-		tw.chain().tween_callback(d.queue_free)
+		for i in 33:
+			var ang := deg_to_rad(lerpf(s0, s1, i / 32.0))
+			pts.append(Vector2(cos(ang), sin(ang)) * rr)
+		l.points = pts
+		root.add_child(l)
+		root.modulate.a = 0.0
+		var tw := root.create_tween()
+		tw.tween_interval(0.12 + k * 0.03)
+		tw.tween_property(root, "modulate:a", 1.0, 0.05)
+		tw.set_parallel(true)
+		tw.tween_property(root, "rotation_degrees", randf_range(-25, 25), 1.3)
+		tw.tween_property(root, "scale", Vector2.ONE * randf_range(1.0, 1.15), 1.3)
+		tw.tween_property(root, "modulate:a", 0.0, 0.9).set_delay(0.4)
+		tw.chain().tween_callback(root.queue_free)
