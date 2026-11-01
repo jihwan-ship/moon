@@ -23,7 +23,7 @@ meta = json.load(open(META))
 assert meta['scale'] == S
 
 
-def cutout(path, box=None, seed=None, thicken=0):
+def cutout(path, box=None, seed=None, thicken=0, close=3):
     """흰 바탕을 투명하게 만든다. 선의 작은 틈은 메워서 판단한다.
     seed가 있으면 그 점을 포함한 안쪽(얼굴)만 흰색으로 남기고, 없으면 선 안쪽을 모두 흰색으로 채운다.
     thicken: 줄여서 쓸 그림의 선이 너무 가늘어지지 않게 선을 굵힌다(픽셀)."""
@@ -34,7 +34,7 @@ def cutout(path, box=None, seed=None, thicken=0):
     ink = a.sum(2) / 3 < 170
     if thicken:
         ink = ndimage.binary_dilation(ink, iterations=thicken)
-    closed = ndimage.binary_closing(ink, iterations=3) | ink
+    closed = ndimage.binary_closing(ink, iterations=close) | ink
     lab, _ = ndimage.label(~closed)
     if seed is not None:
         fill = lab == lab[seed[1], seed[0]]
@@ -105,10 +105,13 @@ save('k_boot', img, -10, -6)
 # 무기: 원본은 총구(칼날)가 왼쪽. 좌우를 뒤집어 총구가 앞(+x)을 보게 하고, 손잡이를 피벗으로
 # 이름: (원본에서 손잡이 위치, 크기, 뒤집기). 묵 공방 칼은 처음부터 칼날이 오른쪽이라 뒤집지 않는다
 WEAPONS = {'pistol': ((245, 128), 0.24, True), 'shotgun': ((262, 128), 0.42, True), 'greatsword': ((295, 122), 0.55, True),
-           'katana': ((100, 130), 0.42, False), 'crystal_sword': ((58, 56), 0.4, False),
-           'durandal': ((80, 118), 0.42, False)}
+           'katana': ((100, 130), 0.7, False), 'crystal_sword': ((58, 56), 0.4, False),
+           'durandal': ((80, 118), 0.8, False)}
+# 겹쳐 그린 선이 많은 칼 그림은 굵히거나 메우면 선이 뭉쳐 검게 칠해지므로 살짝만 굵힌다
+THIN = {'katana', 'crystal_sword', 'durandal'}
 for name, ((gx, gy), wf, flip) in WEAPONS.items():
-    img, bb = cutout(os.path.join(SRC, name + '.png'), thicken=2)
+    thin = name in THIN
+    img, bb = cutout(os.path.join(SRC, name + '.png'), thicken=1 if thin else 2, close=1 if thin else 3)
     if flip:
         img = img.transpose(Image.FLIP_LEFT_RIGHT)
     gx2 = (bb[2] - gx) if flip else (gx - bb[0])   # 손잡이 x(오려낸 그림 기준)
