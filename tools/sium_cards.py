@@ -140,8 +140,8 @@ user_card('art_src/sium/card_mook.png', 'mook')
 
 user_card('art_src/sium/card_logic.png', 'logic')
 
-# 뒤랑달: 직접 그린 칼 그림
-user_card('art_src/sium/durandal.png', 'durandal', rot=-28)
+# 뒤랑달: 직접 그린 책장 그림
+user_card('art_src/sium/card_durandal.png', 'durandal')
 
 # 크리스탈: 직접 그린 칼 두 자루를 X자로 엇갈려 놓는다
 def crossed_card(src, name):
