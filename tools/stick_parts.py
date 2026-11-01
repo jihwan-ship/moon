@@ -1,6 +1,6 @@
 """직접 그린 쫄라맨 정시우 그림으로 인형 부위(k_*)를 만든다.
 머리와 무기는 그림에서 오려 내고(흰 바탕은 투명하게, 선 안쪽 흰색은 남긴다), 몸과 팔다리는 같은 굵기의 선으로 그린다.
-입력: art_src/sium/{sium,pistol,shotgun,greatsword,katana,crystal_sword}.png  출력: game/art/parts/k_*.png, game/art/parts.json에 추가
+입력: art_src/sium/{sium,pistol,shotgun,greatsword,katana,crystal_sword,durandal}.png  출력: game/art/parts/k_*.png, game/art/parts.json에 추가
 사용: python3 tools/stick_parts.py
 """
 import json
@@ -105,7 +105,8 @@ save('k_boot', img, -10, -6)
 # 무기: 원본은 총구(칼날)가 왼쪽. 좌우를 뒤집어 총구가 앞(+x)을 보게 하고, 손잡이를 피벗으로
 # 이름: (원본에서 손잡이 위치, 크기, 뒤집기). 묵 공방 칼은 처음부터 칼날이 오른쪽이라 뒤집지 않는다
 WEAPONS = {'pistol': ((245, 128), 0.24, True), 'shotgun': ((262, 128), 0.42, True), 'greatsword': ((295, 122), 0.55, True),
-           'katana': ((100, 130), 0.42, False), 'crystal_sword': ((58, 56), 0.4, False)}
+           'katana': ((100, 130), 0.42, False), 'crystal_sword': ((58, 56), 0.4, False),
+           'durandal': ((80, 118), 0.42, False)}
 for name, ((gx, gy), wf, flip) in WEAPONS.items():
     img, bb = cutout(os.path.join(SRC, name + '.png'), thicken=2)
     if flip:

@@ -1244,6 +1244,10 @@ func _strike(who: String, side: Dictionary, dd: Dictionary) -> void:
 			if not _side(who)["broken"]:
 				await _strike_stick_crystal(side, dd)
 			return
+		if anim == "r_durandal":
+			if not _side(who)["broken"]:
+				await _strike_stick_durandal(side, dd)
+			return
 		if anim == "r_wheels":
 			if not _side(who)["broken"]:
 				await _strike_stick_wheels(side, dd)
@@ -2250,3 +2254,57 @@ func _x_flash(c: Vector2) -> void:
 		tw.tween_property(o, "position", o.position + Vector2(randf_range(-30, 30), randf_range(-50, -10)), 1.2)
 		tw.tween_property(o, "modulate:a", 0.0, 0.9).set_delay(0.3)
 		tw.chain().tween_callback(o.queue_free)
+
+
+## 뒤랑달: 원작처럼 자세만 딱딱 바뀐다. 1타는 크게 내리베며 커다란 하얀 초승달과 섬광,
+## 2타는 올려치며 상대를 감싸는 은빛 고리가 여러 겹 남았다가 천천히 사라진다
+func _strike_stick_durandal(side: Dictionary, _dd: Dictionary) -> void:
+	var p: Puppet = pup["s"]
+	var nth: int = side.get("strikes", 0)
+	side["strikes"] = nth + 1
+	var tgt := _body("t")
+	await wait(0.12)
+	Sfx.play("swing")
+	if nth % 2 == 0:
+		p.set_pose(Poses.get_pose("k", "durandal_down"))
+		_burst_flash(_body("s") + Vector2(120, 0), 0.7)
+		# 위에서 아래로 크게 내리벤 궤적(밝은 초승달 두 겹)
+		Fx.crescent(fxl, tgt + Vector2(-60, 0), 230, -80, 90, 110, Color(1, 1, 1), 0.06)
+		Fx.crescent(fxl, tgt + Vector2(-50, 10), 200, -70, 80, 40, Color(0.85, 0.85, 0.85), 0.08)
+		_ink_trail(tgt + Vector2(-60, 0), 230, -80, 90)
+	else:
+		p.set_pose(Poses.get_pose("k", "durandal_up"))
+		_burst_flash(tgt, 0.9)
+		_screen_flash(0.3)
+		# 아래에서 위로 올려친 궤적: 상대를 감싸는 은빛 고리 여러 겹
+		fx_hold += 1
+		get_tree().create_timer(1.8, true, false, false).timeout.connect(func(): fx_hold -= 1)
+		for k in 4:
+			_ring_fx(tgt + Vector2(randf_range(-20, 20), randf_range(-15, 15)), 230 - k * 25, 200 - k * 20, -15 + k * 12, k * 0.05)
+		_ink_trail(tgt, 220, 120, -60)
+	await wait(0.06)
+	Sfx.play("slash")
+	_shake(12, 0.22)
+	_hitstop(0.08)
+
+
+## 칼이 지나간 호를 따라 먹물 자국이 남는다
+func _ink_trail(c: Vector2, r: float, a0: float, a1: float) -> void:
+	for k in 18:
+		var t := randf()
+		var ang := deg_to_rad(lerpf(a0, a1, t))
+		var pos := c + Vector2(cos(ang), sin(ang)) * (r + randf_range(-30, 20))
+		var d := Polygon2D.new()
+		var rr := randf_range(4, 12)
+		var pts := PackedVector2Array()
+		for i in 7:
+			pts.append(Vector2.from_angle(TAU * i / 7.0) * rr * randf_range(0.6, 1.3))
+		d.polygon = pts
+		d.color = Color(0.08, 0.07, 0.07, 0.9)
+		d.position = pos
+		d.z_index = 43
+		fxl.add_child(d)
+		var tw := d.create_tween().set_parallel(true)
+		tw.tween_property(d, "position", pos + Vector2(randf_range(-20, 40), randf_range(10, 50)), 1.0)
+		tw.tween_property(d, "modulate:a", 0.0, 0.7).set_delay(0.4)
+		tw.chain().tween_callback(d.queue_free)
