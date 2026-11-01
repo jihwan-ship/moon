@@ -106,5 +106,3 @@ def durandal_fx2():
 
 thumb()
 gunfx()
-durandal_fx2()
-durandal_fx()

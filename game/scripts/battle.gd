@@ -2256,47 +2256,106 @@ func _x_flash(c: Vector2) -> void:
 		tw.chain().tween_callback(o.queue_free)
 
 
-## 뒤랑달: 1타는 칼끝을 아래 앞으로, 2타는 칼을 수평으로 뻗은 자세로 (탁) 바뀌고, 이펙트는 하나로 통일한다.
-## 원작 영상의 초승달은 칼을 휘두른 사람을 중심으로 한 큰 원의 상대 쪽 테두리다. 롤랑은 오른쪽, 정시우는 왼쪽에 서므로
-## 좌우를 뒤집어 정시우 앞(오른쪽)에 직접 그린 두꺼운 ")" 띠를 크게 띄운다. 1타는 아래로, 2타는 위로 조금 돌며 사라진다
+## 뒤랑달(원작 영상 2분 15~18초를 좌우만 뒤집어서. 원작은 롤랑이 오른쪽, 정시우는 왼쪽에 선다)
+## 1타는 칼끝을 아래 앞으로, 2타는 칼을 수평으로 뻗은 자세로 (탁) 바뀐다(보내 준 롤랑 자세 그림). 이펙트는 두 번 다 같은 순서:
+## 1) 상대 자리에 하얀 섬광이 터지고 상대를 가르는 빛줄기 한 줄
+## 2) 정시우를 중심으로 한 큰 원의 상대 쪽 테두리에 크고 많이 휜 하얀 초승달 ")" 이 빛나며 0.35초 버틴다
+## 3) 초승달이 가는 은빛 호 여러 줄로 갈라져 원을 따라 돌며 사라진다. 1타는 아래로, 2타는 위로
 func _strike_stick_durandal(side: Dictionary, _dd: Dictionary) -> void:
 	var p: Puppet = pup["s"]
 	var nth: int = side.get("strikes", 0)
 	side["strikes"] = nth + 1
 	var up := nth % 2 == 1
 	fx_hold += 1
-	get_tree().create_timer(1.4, true, false, false).timeout.connect(func(): fx_hold -= 1)
+	get_tree().create_timer(1.6, true, false, false).timeout.connect(func(): fx_hold -= 1)
 	await wait(0.12)
 	Sfx.play("swing")
 	p.set_pose(Poses.get_pose("k", "durandal_2" if up else "durandal_1"))
-	_durandal_band(_body("s"), up)
+	var me := _body("s")
+	var tgt := _body("t")
+	_burst_flash(tgt, 1.0)
+	_light_line(tgt, -65.0 if up else 65.0, 300, 5, 0.04, 0.5)
+	# 원작처럼 원의 중심은 정시우 뒤쪽, 가늘고 큰 초승달이 두 사람 사이(상대 바로 앞)에 걸린다
+	var cen := me + Vector2(-140, 0)
+	var R := maxf(260.0, tgt.x - 20.0 - cen.x)
+	_glow_crescent(cen, R, -105.0, 105.0, 46.0, 0.35)
+	_silver_shards(cen, R, -105.0, 105.0, -60.0 if up else 60.0, 0.35)
 	await wait(0.06)
 	Sfx.play("slash")
-	_shake(10, 0.2)
-	_hitstop(0.07)
+	_shake(12, 0.22)
+	_hitstop(0.08)
 
 
-func _durandal_band(me: Vector2, up: bool) -> void:
-	var tex: Texture2D = load("res://art/sium/durandal_fx2.png")
-	var pivot := Node2D.new()
-	pivot.position = me
-	pivot.z_index = 44
-	fxl.add_child(pivot)
-	var h := 520.0
-	var sc := h / tex.get_height()
-	var m := Sprite2D.new()
-	m.texture = tex
-	m.centered = false
-	m.scale = Vector2(sc * 0.7, sc)
-	# 띠의 왼쪽(열린 쪽)이 정시우 바로 앞, 볼록한 쪽이 상대 뒤까지
-	m.position = Vector2(50, -h * 0.5)
-	pivot.add_child(m)
-	pivot.scale = Vector2(0.85, 0.85)
-	var turn := -22.0 if up else 22.0
-	var tw := pivot.create_tween()
-	tw.tween_property(pivot, "scale", Vector2.ONE, 0.07).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	tw.tween_interval(0.4)
-	tw.set_parallel(true)
-	tw.tween_property(pivot, "rotation_degrees", turn, 0.55).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	tw.tween_property(pivot, "modulate:a", 0.0, 0.55)
-	tw.chain().tween_callback(pivot.queue_free)
+## 빛나는 초승달(가운데가 두껍고 양끝이 뾰족). 흰 속 + 덧그리는 빛 번짐. 빠르게 그려지고 hold초 버틴 뒤 사라진다
+func _glow_crescent(c: Vector2, r: float, a0: float, a1: float, thick: float, hold: float) -> void:
+	var root := Node2D.new()
+	root.position = c
+	root.z_index = 44
+	fxl.add_child(root)
+	var layers := []
+	for spec in [[1.9, Color(1, 1, 1, 0.22)], [1.3, Color(1, 1, 1, 0.45)], [1.0, Color(1, 1, 1, 1.0)]]:
+		var poly := Polygon2D.new()
+		poly.color = spec[1]
+		poly.material = Fx.add_mat()
+		root.add_child(poly)
+		layers.append([poly, spec[0]])
+	var build := func(t: float) -> void:
+		var n := 48
+		var m := maxi(2, int(n * t))
+		for L in layers:
+			var outer := PackedVector2Array()
+			var inner := PackedVector2Array()
+			for i in m + 1:
+				var u := float(i) / n
+				var ang := deg_to_rad(lerpf(a0, a1, u))
+				var dir := Vector2(cos(ang), sin(ang))
+				var w := thick * pow(sin(PI * clampf(u / maxf(t, 0.01), 0.0, 1.0)), 0.7)
+				outer.append(dir * (r + w * (L[1] - 1.0) * 0.5))
+				inner.append(dir * (r - w * L[1]))
+			inner.reverse()
+			(L[0] as Polygon2D).polygon = outer + inner
+	build.call(0.02)
+	var tw := root.create_tween()
+	tw.tween_method(build, 0.02, 1.0, 0.07).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(hold)
+	tw.tween_property(root, "modulate:a", 0.0, 0.12)
+	tw.tween_callback(root.queue_free)
+
+
+## 초승달이 갈라진 가는 은빛 호들. delay초 뒤 나타나 원을 따라 turn도 돌며 사라진다(+는 시계 방향)
+func _silver_shards(c: Vector2, r: float, a0: float, a1: float, turn: float, delay: float) -> void:
+	for k in 9:
+		var root := Node2D.new()
+		root.position = c + Vector2(randf_range(-10, 10), randf_range(-10, 10))
+		root.z_index = 44
+		fxl.add_child(root)
+		var rr := r + randf_range(-70, 25)
+		var s0 := lerpf(a0, a1, randf_range(0.0, 0.35))
+		var s1 := lerpf(a0, a1, randf_range(0.65, 1.0))
+		var pts := PackedVector2Array()
+		for i in 33:
+			var ang := deg_to_rad(lerpf(s0, s1, i / 32.0))
+			pts.append(Vector2(cos(ang), sin(ang)) * rr)
+		for layer in 2:
+			var l := Line2D.new()
+			l.points = pts
+			l.width = randf_range(10, 16) if layer == 0 else randf_range(2.5, 5.0)
+			l.default_color = Color(1, 1, 1, 0.18 if layer == 0 else 0.95)
+			l.material = Fx.add_mat()
+			var curve := Curve.new()
+			curve.add_point(Vector2(0, 0.0))
+			curve.add_point(Vector2(0.5, 1.0))
+			curve.add_point(Vector2(1, 0.0))
+			l.width_curve = curve
+			root.add_child(l)
+		root.modulate.a = 0.0
+		var tw := root.create_tween()
+		tw.tween_interval(delay + k * 0.015)
+		tw.tween_property(root, "modulate:a", 1.0, 0.03)
+		tw.set_parallel(true)
+		tw.tween_property(root, "rotation_degrees", turn * randf_range(0.75, 1.25), 0.9).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_property(root, "modulate:a", 0.0, 0.55).set_delay(0.4)
+		tw.chain().tween_callback(root.queue_free)
+		if k % 3 == 0:
+			var ang := deg_to_rad(lerpf(s0, s1, 0.5))
+			Fx.sparkle(fxl, c + Vector2(cos(ang), sin(ang)) * rr, 0.6, delay + 0.05)
