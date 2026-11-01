@@ -7,6 +7,8 @@ const ENDING_MESSAGE := "군 생활 건강하게!\n짬타이거가 지켜보고 
 
 # "soldier" = 이병 김신병, "sium" = 쫄라맨 정시우가 롤랑 책장을 쓰는 모드
 var mode := "soldier"
+# 테스트 모드: 짬타이거가 아무것도 안 하고 체력도 줄지 않으며, 정시우는 기력이 넉넉하다(정시우 모드로 시작)
+var practice := false
 
 
 func player_name() -> String:

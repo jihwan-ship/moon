@@ -479,7 +479,7 @@ func _title() -> void:
 	sub.size = Vector2(1280, 40)
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	overlay.add_child(sub)
-	var modes := [["작전 개시", "soldier"], ["정시우 모드", "sium"]]
+	var modes := [["작전 개시", "soldier"], ["정시우 모드", "sium"], ["테스트 모드", "practice"]]
 	for i in modes.size():
 		var mb := _button(modes[i][0], Vector2(640 - modes.size() * 110 + i * 220 + 10, 420))
 		overlay.add_child(mb)
@@ -491,11 +491,15 @@ func _title() -> void:
 	var mode: String = await mode_chosen
 	tw.kill()
 	Sfx.play("click")
+	Cfg.practice = mode == "practice"
+	if Cfg.practice:
+		mode = "sium"
 	_set_mode(mode)
 	Sfx.play_bgm("bgm")
 	overlay.visible = false
 	_new_game()
-	await _dialogue(GameData.INTRO_SIUM if mode == "sium" else GameData.INTRO)
+	if not Cfg.practice:
+		await _dialogue(GameData.INTRO_SIUM if mode == "sium" else GameData.INTRO)
 	_start_turn()
 
 
@@ -584,6 +588,9 @@ func _setup_tiger() -> void:
 	var ph: Dictionary = GameData.phases()[phase]
 	T = {"hp": ph["hp"], "max_hp": ph["hp"], "mental": ph["mental"], "max_mental": ph["mental"], "broken": false, "skip": false,
 		"ammo": ph["ammo"], "max_ammo": ph["ammo"], "rage": 0}
+	if Cfg.practice:
+		for k in ["hp", "max_hp", "mental", "max_mental"]:
+			T[k] = 9999
 	pup["t"].set_rank(ph["n"])
 
 
@@ -605,6 +612,12 @@ func _start_turn() -> void:
 	P["skip"] = P["broken"]
 	T["skip"] = T["broken"]
 	P["energy"] = maxi(0, P["max_energy"] - (1 if P["status"].has("pushup") else 0))
+	if Cfg.practice:
+		P["energy"] = 9
+		T["hp"] = T["max_hp"]
+		T["mental"] = T["max_mental"]
+		T["broken"] = false
+		T["skip"] = true
 	# 손에 남은 책장과 지난 합에 쓴 책장은 모두 버림 더미로 돌아간다(필살기는 따로)
 	for id_ in hand + slots:
 		if id_ != "" and id_ != "ult":
@@ -636,6 +649,8 @@ func _start_turn() -> void:
 		say("s", GameData.LINES["s_pushup"].pick_random())
 	if P["skip"]:
 		show_toast("멘탈이 무너져 이번 턴은 움직일 수 없다! 합 시작을 누르세요.")
+	elif Cfg.practice:
+		show_toast("테스트 모드: 짬타이거는 가만히 맞기만 한다. 기력 9.")
 	elif T["skip"]:
 		show_toast("짬타이거가 멍해졌다! 마음껏 공격하자.")
 	else:
@@ -1595,6 +1610,9 @@ func _defeat() -> void:
 
 ## test=플랜: 배치 화면 / test=fight: 자동으로 몇 턴 진행
 func _run_test() -> void:
+	if test_mode.begins_with("practice"):
+		Cfg.practice = true
+		test_mode = "sium" + test_mode.substr(8)
 	for m in ["sium"]:
 		if test_mode.begins_with(m):
 			_set_mode(m)
@@ -2426,34 +2444,50 @@ func _atk_nth(side: Dictionary) -> int:
 	return n
 
 
-## 랑아 공방(원작 영상 19~23초를 왼쪽에 서는 정시우 기준으로 뒤집어서). 자세만 (탁) 바뀌고 이펙트는 낙서 느낌.
-## 1타: 건틀릿으로 할퀴며 상대를 관통해 오른쪽으로 지나가고, 도착한 자리에서 몸을 감는 소용돌이 할퀸 자국
-## 2타: 다시 관통해 왼쪽으로 돌아오며 같은 소용돌이
-## 3타: 단검을 내지르며 다시 오른쪽으로 관통하고, 지나온 길 전체에 가로로 길게 번쩍
+## 랑아 공방(원작 영상 19~23초를 프레임별로 본 대로, 왼쪽에 서는 정시우 기준으로 뒤집어서). 건틀릿 두 번, 단검 한 번.
+## 1타(건틀릿): 상대를 관통해 오른쪽 끝으로. 상대 쪽으로 할퀸 자국 호가 감기고, 상대 몸에 비스듬한 빛줄기
+## 2타(건틀릿): 다시 관통해 왼쪽 끝으로. 같은 할퀸 자국, 비스듬한 빛줄기, 상대 발밑에 땅이 쩍 갈라진다
+## 3타(단검): 상대 바로 앞까지 파고들고, 상대에서 지나온 쪽으로 화면을 가로지르는 큰 빛줄기와 빛 방울
 func _strike_stick_ranga(side: Dictionary, _dd: Dictionary) -> void:
 	var p: Puppet = pup["s"]
-	var nth := _atk_nth(side)
+	var nth := mini(_atk_nth(side), 2)
 	var tgt := _body("t")
 	var tx: float = pup["t"].position.x
-	var right := nth != 1
 	var from := p.position.x
-	var to := tx + 300.0 if right else tx - 300.0
+	var to: float = [tx + 320.0, tx - 320.0, tx - 130.0][nth]
+	var right := to > from
 	fx_hold += 1
 	get_tree().create_timer(1.1, true, false, false).timeout.connect(func(): fx_hold -= 1)
 	p.scale.x = absf(p.scale.x) * (1.0 if right else -1.0)
 	await wait(0.06)
 	Sfx.play("swing")
-	p.set_pose(Poses.get_pose("k", ["ranga_1", "ranga_2", "ranga_3"][mini(nth, 2)]))
+	p.set_pose(Poses.get_pose("k", ["ranga_1", "ranga_2", "ranga_3"][nth]))
 	_slide("s", to, 0.07, Tween.TRANS_QUAD)
 	var y := tgt.y + 20
 	_doodle_streak_line(Vector2(from, y), Vector2(to, y))
 	await wait(0.07)
-	if nth >= 2:
-		_doodle_flash_band(Vector2((from + to) * 0.5, y - 10), absf(to - from) * 0.6)
-	_scratch_swirl(_body("s") + Vector2(0, -10))
-	# 오른쪽에 도착하면 잠깐 뒤 돌아서서 상대를 본다(합이 이어지는 동안 그 자리에 머문다)
-	crystal_hold = right and nth < 2
-	if right and nth < 2:
+	if nth < 2:
+		# 할퀸 자국은 도착한 정시우의 상대 쪽으로 감긴다
+		var me := _body("s") + Vector2(0, -10)
+		var mid := 180.0 if right else 0.0
+		for k in 6:
+			var a0 := mid - randf_range(70, 110)
+			var a1 := mid + randf_range(70, 110)
+			if k % 2:
+				var t := a0
+				a0 = a1
+				a1 = t
+			_doodle_arc(me + Vector2(randf_range(-10, 10), randf_range(-12, 12)), randf_range(90, 160), a0, a1, randf_range(12, 22), 0.6)
+		_doodle_slash(tgt + Vector2(0, -10), -55.0 if nth == 0 else 50.0, 170.0)
+		if nth == 1:
+			_ground_cracks(Vector2(tx, GROUND))
+	else:
+		var left_end := minf(from, to) - 200.0
+		_doodle_flash_band(Vector2((tx + left_end) * 0.5, y - 10), (tx - left_end) * 0.5 + 60.0)
+		_light_orbs(Vector2(left_end, y - 10), Vector2(tx + 60.0, y - 10))
+	# 오른쪽 끝에 도착하면 잠깐 뒤 돌아서서 상대를 본다(합이 이어지는 동안 그 자리에 머문다)
+	crystal_hold = nth == 0
+	if nth == 0:
 		get_tree().create_timer(0.35).timeout.connect(func():
 			if crystal_hold:
 				p.scale.x = -absf(p.scale.x))
@@ -2464,29 +2498,93 @@ func _strike_stick_ranga(side: Dictionary, _dd: Dictionary) -> void:
 	_hitstop(0.05)
 
 
-## 몸을 감는 소용돌이 할퀸 자국: 낙서 호 여러 개가 제각각 돌며 겹치고 먹물 방울이 튄다
-func _scratch_swirl(c: Vector2) -> void:
-	for k in 7:
-		var a0 := randf_range(0, 360)
-		var sweep := randf_range(200, 290) * (1.0 if k % 2 == 0 else -1.0)
-		_doodle_arc(c + Vector2(randf_range(-12, 12), randf_range(-12, 12)), randf_range(80, 150), a0, a0 + sweep, randf_range(10, 20), 0.6)
-	for k in 10:
-		var dot := Polygon2D.new()
-		var rr := randf_range(5, 12)
+## 상대 몸을 비스듬히 가르는 낙서 빛줄기(흰 속 + 검은 테두리, 양끝이 가늘다)
+func _doodle_slash(c: Vector2, deg: float, half: float) -> void:
+	var d := Vector2.from_angle(deg_to_rad(deg)) * half
+	var root := Node2D.new()
+	root.z_index = 46
+	fxl.add_child(root)
+	for layer in 2:
+		var l := Line2D.new()
+		l.points = PackedVector2Array([c - d, c + Vector2(randf_range(-4, 4), randf_range(-4, 4)), c + d])
+		l.width = 18.0 if layer == 0 else 9.0
+		l.default_color = Color(0.08, 0.07, 0.07) if layer == 0 else Color(1, 1, 1)
+		var curve := Curve.new()
+		curve.add_point(Vector2(0, 0.1))
+		curve.add_point(Vector2(0.5, 1.0))
+		curve.add_point(Vector2(1, 0.1))
+		l.width_curve = curve
+		root.add_child(l)
+	root.scale = Vector2(0.2, 0.2)
+	var tw := root.create_tween()
+	tw.tween_property(root, "scale", Vector2.ONE, 0.05)
+	tw.tween_interval(0.3)
+	tw.tween_property(root, "modulate:a", 0.0, 0.35)
+	tw.tween_callback(root.queue_free)
+
+
+## 상대 발밑에 땅이 쩍 갈라진 낙서 금(검은 지그재그 선이 사방으로)
+func _ground_cracks(at: Vector2) -> void:
+	var root := Node2D.new()
+	root.position = at
+	root.z_index = 6
+	fxl.add_child(root)
+	for k in 8:
+		var dir := Vector2.from_angle(TAU * k / 8.0 + randf_range(-0.2, 0.2))
+		dir.y *= 0.3
+		var pts := PackedVector2Array([Vector2.ZERO])
+		var q := Vector2.ZERO
+		for i in 4:
+			q += dir * randf_range(25, 45) + Vector2(randf_range(-8, 8), randf_range(-3, 3))
+			pts.append(q)
+		var l := Line2D.new()
+		l.points = pts
+		l.width = 5.0
+		l.default_color = Color(0.08, 0.07, 0.07)
+		root.add_child(l)
+	var ring := Line2D.new()
+	ring.closed = true
+	ring.width = 4.0
+	ring.default_color = Color(0.08, 0.07, 0.07)
+	var rp := PackedVector2Array()
+	for i in 16:
+		var ang := TAU * i / 16.0
+		rp.append(Vector2(cos(ang) * 70.0, sin(ang) * 20.0) * randf_range(0.85, 1.15))
+	ring.points = rp
+	root.add_child(ring)
+	var tw := root.create_tween()
+	tw.tween_interval(0.6)
+	tw.tween_property(root, "modulate:a", 0.0, 0.4)
+	tw.tween_callback(root.queue_free)
+
+
+## 빛줄기를 따라 흩어지는 낙서 빛 방울(흰 동그라미 + 검은 테두리)
+func _light_orbs(a: Vector2, b: Vector2) -> void:
+	for k in 9:
+		var root := Node2D.new()
+		root.position = a.lerp(b, randf()) + Vector2(0, randf_range(-90, 60))
+		root.z_index = 47
+		fxl.add_child(root)
+		var rr := randf_range(10, 22)
 		var pts := PackedVector2Array()
-		for i in 7:
-			pts.append(Vector2.from_angle(TAU * i / 7.0) * rr * randf_range(0.7, 1.2))
-		dot.polygon = pts
-		dot.color = Color(0.08, 0.07, 0.07) if k % 2 else Color(1, 1, 1)
-		var ang := randf() * TAU
-		var st := c + Vector2.from_angle(ang) * randf_range(90, 150)
-		dot.position = st
-		dot.z_index = 45
-		fxl.add_child(dot)
-		var tw := dot.create_tween().set_parallel(true)
-		tw.tween_property(dot, "position", st + Vector2.from_angle(ang) * randf_range(40, 90), 0.5)
-		tw.tween_property(dot, "modulate:a", 0.0, 0.35).set_delay(0.2)
-		tw.chain().tween_callback(dot.queue_free)
+		for i in 10:
+			pts.append(Vector2.from_angle(TAU * i / 10.0) * rr * randf_range(0.85, 1.15))
+		var fill := Polygon2D.new()
+		fill.polygon = pts
+		fill.color = Color(1, 1, 1)
+		var edge := Line2D.new()
+		edge.points = pts + PackedVector2Array([pts[0]])
+		edge.width = 4.0
+		edge.default_color = Color(0.08, 0.07, 0.07)
+		root.add_child(fill)
+		root.add_child(edge)
+		root.scale = Vector2.ZERO
+		var tw := root.create_tween()
+		tw.tween_interval(randf_range(0.0, 0.12))
+		tw.tween_property(root, "scale", Vector2.ONE, 0.08)
+		tw.tween_interval(0.3)
+		tw.tween_property(root, "modulate:a", 0.0, 0.4)
+		tw.tween_callback(root.queue_free)
 
 
 ## 낙서 호(흰 속 + 삐뚤빼뚤한 검은 테두리, 양끝이 뾰족). a0에서 a1까지 빠르게 그려지고 잠깐 뒤 사라진다
