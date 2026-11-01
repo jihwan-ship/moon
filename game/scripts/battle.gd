@@ -2256,159 +2256,47 @@ func _x_flash(c: Vector2) -> void:
 		tw.chain().tween_callback(o.queue_free)
 
 
-## 뒤랑달(영상 2분 15~18초를 프레임별로 본 대로). 두 번 다 같은 순서로 1.3초쯤:
-## 1) (탁) 자세가 바뀌는 순간 정시우 쪽에서 하얀 섬광이 터지고, 칼이 지나간 가는 사선 한 줄이 남는다
-## 2) 상대보다 조금 뒤를 중심으로 한 큰 원의 왼쪽(정시우 쪽) 테두리에 가늘고 밝은 초승달 "(" 이 0.4초 버틴다
-## 3) 초승달이 가는 줄 여러 개로 갈라지며 원을 따라 돌다 사라진다. 1타는 아래쪽으로, 2타는 위쪽(머리 위)으로
-## 모양은 지금까지처럼 낙서 느낌(삐뚤빼뚤한 검은 테두리 + 흰 속)
+## 뒤랑달: 1타는 칼끝을 아래 앞으로, 2타는 칼을 수평으로 뻗은 자세로 (탁) 바뀌고, 이펙트는 하나로 통일한다.
+## 원작 영상의 초승달은 칼을 휘두른 사람을 중심으로 한 큰 원의 상대 쪽 테두리다. 롤랑은 오른쪽, 정시우는 왼쪽에 서므로
+## 좌우를 뒤집어 정시우 앞(오른쪽)에 직접 그린 두꺼운 ")" 띠를 크게 띄운다. 1타는 아래로, 2타는 위로 조금 돌며 사라진다
 func _strike_stick_durandal(side: Dictionary, _dd: Dictionary) -> void:
 	var p: Puppet = pup["s"]
 	var nth: int = side.get("strikes", 0)
 	side["strikes"] = nth + 1
 	var up := nth % 2 == 1
 	fx_hold += 1
-	get_tree().create_timer(1.6, true, false, false).timeout.connect(func(): fx_hold -= 1)
+	get_tree().create_timer(1.4, true, false, false).timeout.connect(func(): fx_hold -= 1)
 	await wait(0.12)
 	Sfx.play("swing")
-	p.set_pose(Poses.get_pose("k", "durandal_2a" if up else "durandal_1"))
-	var me := _body("s")
-	_burst_flash(me + Vector2(20, 0), 0.9)
-	_doodle_streak(me + (Vector2(-60, 120) if up else Vector2(-60, -150)), me + (Vector2(80, -170) if up else Vector2(80, 130)))
-	# 원작처럼 초승달은 두 사람 사이, 상대 바로 앞에 걸린다(원은 상대 뒤로 크게)
-	var R := 320.0
-	var cen := _body("t") + Vector2(R - 90, -20)
-	_doodle_moon(cen, R, 0.4)
-	_moon_shards(cen, R, 75.0 if up else -75.0)
+	p.set_pose(Poses.get_pose("k", "durandal_2" if up else "durandal_1"))
+	_durandal_band(_body("s"), up)
 	await wait(0.06)
 	Sfx.play("slash")
 	_shake(10, 0.2)
 	_hitstop(0.07)
 
 
-## 손떨림 점 목록(미리 정해 두어 그려지는 동안 흔들리지 않게)
-func _wobbly_arc(r: float, a0: float, a1: float, n: int, amp: float) -> PackedVector2Array:
-	var pts := PackedVector2Array()
-	for i in n + 1:
-		var ang := deg_to_rad(lerpf(a0, a1, float(i) / n))
-		pts.append(Vector2(cos(ang), sin(ang)) * (r + randf_range(-amp, amp)))
-	return pts
-
-
-## 검은 테두리 + 흰 속 낙서 선
-func _doodle_stroke(parent: Node2D, pts: PackedVector2Array, w: float) -> void:
-	for layer in 2:
-		var l := Line2D.new()
-		l.points = pts
-		l.width = w + 5.0 if layer == 0 else w
-		l.default_color = Color(0.08, 0.07, 0.07) if layer == 0 else Color(1, 1, 1)
-		l.joint_mode = Line2D.LINE_JOINT_ROUND
-		l.begin_cap_mode = Line2D.LINE_CAP_ROUND
-		l.end_cap_mode = Line2D.LINE_CAP_ROUND
-		var curve := Curve.new()
-		curve.add_point(Vector2(0, 0.25))
-		curve.add_point(Vector2(0.5, 1.0))
-		curve.add_point(Vector2(1, 0.25))
-		l.width_curve = curve
-		parent.add_child(l)
-
-
-## 큰 원 왼쪽 테두리의 가늘고 밝은 낙서 초승달. hold초 버티다 금방 사라진다
-func _doodle_moon(cen: Vector2, R: float, hold: float) -> void:
-	var root := Node2D.new()
-	root.position = cen
-	root.z_index = 44
-	fxl.add_child(root)
-	var thick := 70.0
-	# 바깥 선만 살짝 떨리게 하고, 두 끝은 안팎이 같은 점에서 만나게 해야 채우기가 깨지지 않는다
-	var outer := PackedVector2Array()
-	var inner := PackedVector2Array()
-	for i in 27:
-		var u := i / 26.0
-		var ang := deg_to_rad(lerpf(115, 245, u))
-		var dir := Vector2(cos(ang), sin(ang))
-		var w := sin(PI * u)
-		outer.append(dir * (R + randf_range(-4, 4) * w))
-		if i > 0 and i < 26:
-			inner.append(dir * (R - thick * w))
-	inner.reverse()
-	var poly := outer + inner
-	var fill := Polygon2D.new()
-	fill.polygon = poly
-	fill.color = Color(1, 1, 1, 0.95)
-	var edge := Line2D.new()
-	edge.points = poly + PackedVector2Array([poly[0]])
-	edge.width = 5.0
-	edge.default_color = Color(0.08, 0.07, 0.07)
-	edge.joint_mode = Line2D.LINE_JOINT_ROUND
-	root.add_child(fill)
-	root.add_child(edge)
-	var tw := root.create_tween()
-	tw.tween_interval(hold)
-	tw.tween_property(root, "modulate:a", 0.0, 0.12)
-	tw.tween_callback(root.queue_free)
-
-
-## 초승달이 갈라진 가는 낙서 줄들이 원을 따라 turn도만큼 돌며 사라진다(+는 위로, -는 아래로)
-func _moon_shards(cen: Vector2, R: float, turn: float) -> void:
-	for k in 7:
-		var root := Node2D.new()
-		root.position = cen + Vector2(randf_range(-12, 12), randf_range(-12, 12))
-		root.z_index = 44
-		fxl.add_child(root)
-		var rr := R + randf_range(-45, 25)
-		var span := randf_range(45, 70)
-		_doodle_stroke(root, _wobbly_arc(rr, 180 - span, 180 + span, 22, 6), randf_range(3, 6))
-		root.modulate.a = 0.0
-		var tw := root.create_tween()
-		tw.tween_interval(0.38 + k * 0.02)
-		tw.tween_property(root, "modulate:a", 1.0, 0.03)
-		tw.set_parallel(true)
-		tw.tween_property(root, "rotation_degrees", turn * randf_range(0.8, 1.2), 0.85).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tw.tween_property(root, "modulate:a", 0.0, 0.5).set_delay(0.4)
-		tw.chain().tween_callback(root.queue_free)
-
-
-## 칼이 지나간 가는 사선 한 줄(낙서)
-func _doodle_streak(a: Vector2, b: Vector2) -> void:
-	var root := Node2D.new()
-	root.z_index = 45
-	fxl.add_child(root)
-	var pts := PackedVector2Array()
-	for i in 9:
-		pts.append(a.lerp(b, i / 8.0) + Vector2(randf_range(-4, 4), randf_range(-4, 4)))
-	_doodle_stroke(root, pts, 4.0)
-	var tw := root.create_tween()
-	tw.tween_interval(0.3)
-	tw.tween_property(root, "modulate:a", 0.0, 0.5)
-	tw.tween_callback(root.queue_free)
-
-
-## 맞은 자리에 "팍" 하는 삐죽삐죽 별(흰 속, 검은 테두리)
-func _doodle_pow(at: Vector2) -> void:
-	var pts := PackedVector2Array()
-	var spikes := 9
-	for i in spikes * 2:
-		var ang := TAU * i / (spikes * 2) + randf_range(-0.08, 0.08)
-		var rr := (randf_range(70, 95) if i % 2 == 0 else randf_range(30, 42))
-		pts.append(Vector2.from_angle(ang) * rr)
-	var root := Node2D.new()
-	root.position = at
-	root.z_index = 46
-	root.rotation = randf() * TAU
-	fxl.add_child(root)
-	var fill := Polygon2D.new()
-	fill.polygon = pts
-	fill.color = Color(1, 1, 1)
-	var edge := Line2D.new()
-	edge.points = pts + PackedVector2Array([pts[0]])
-	edge.width = 5.0
-	edge.default_color = Color(0.08, 0.07, 0.07)
-	root.add_child(fill)
-	root.add_child(edge)
-	root.scale = Vector2.ONE * 0.3
-	var tw := root.create_tween()
-	tw.tween_property(root, "scale", Vector2.ONE * 1.1, 0.06)
-	tw.tween_property(root, "scale", Vector2.ONE, 0.06)
-	tw.tween_interval(0.25)
-	tw.tween_property(root, "modulate:a", 0.0, 0.3)
-	tw.tween_callback(root.queue_free)
+func _durandal_band(me: Vector2, up: bool) -> void:
+	var tex: Texture2D = load("res://art/sium/durandal_fx2.png")
+	var pivot := Node2D.new()
+	pivot.position = me
+	pivot.z_index = 44
+	fxl.add_child(pivot)
+	var h := 520.0
+	var sc := h / tex.get_height()
+	var m := Sprite2D.new()
+	m.texture = tex
+	m.centered = false
+	m.scale = Vector2(sc * 0.7, sc)
+	# 띠의 왼쪽(열린 쪽)이 정시우 바로 앞, 볼록한 쪽이 상대 뒤까지
+	m.position = Vector2(50, -h * 0.5)
+	pivot.add_child(m)
+	pivot.scale = Vector2(0.85, 0.85)
+	var turn := -22.0 if up else 22.0
+	var tw := pivot.create_tween()
+	tw.tween_property(pivot, "scale", Vector2.ONE, 0.07).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(0.4)
+	tw.set_parallel(true)
+	tw.tween_property(pivot, "rotation_degrees", turn, 0.55).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(pivot, "modulate:a", 0.0, 0.55)
+	tw.chain().tween_callback(pivot.queue_free)
