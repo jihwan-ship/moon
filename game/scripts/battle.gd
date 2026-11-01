@@ -2447,14 +2447,14 @@ func _atk_nth(side: Dictionary) -> int:
 ## 랑아 공방(원작 영상 19~23초를 프레임별로 본 대로, 왼쪽에 서는 정시우 기준으로 뒤집어서). 건틀릿 두 번, 단검 한 번.
 ## 1타(건틀릿): 상대를 관통해 오른쪽 끝으로. 상대 쪽으로 할퀸 자국 호가 감기고, 상대 몸에 비스듬한 빛줄기
 ## 2타(건틀릿): 다시 관통해 왼쪽 끝으로. 같은 할퀸 자국, 비스듬한 빛줄기, 상대 발밑에 땅이 쩍 갈라진다
-## 3타(단검): 상대 바로 앞까지 파고들고, 상대에서 지나온 쪽으로 화면을 가로지르는 큰 빛줄기와 빛 방울
+## 3타(단검): 다시 상대를 관통해 뒤(오른쪽 끝)로 촥 빠져나가며, 지나온 길 전체를 가로지르는 큰 빛줄기와 빛 방울
 func _strike_stick_ranga(side: Dictionary, _dd: Dictionary) -> void:
 	var p: Puppet = pup["s"]
 	var nth := mini(_atk_nth(side), 2)
 	var tgt := _body("t")
 	var tx: float = pup["t"].position.x
 	var from := p.position.x
-	var to: float = [tx + 320.0, tx - 320.0, tx - 130.0][nth]
+	var to: float = [tx + 320.0, tx - 320.0, tx + 340.0][nth]
 	var right := to > from
 	fx_hold += 1
 	get_tree().create_timer(1.1, true, false, false).timeout.connect(func(): fx_hold -= 1)
@@ -2482,12 +2482,13 @@ func _strike_stick_ranga(side: Dictionary, _dd: Dictionary) -> void:
 		if nth == 1:
 			_ground_cracks(Vector2(tx, GROUND))
 	else:
-		var left_end := minf(from, to) - 200.0
-		_doodle_flash_band(Vector2((tx + left_end) * 0.5, y - 10), (tx - left_end) * 0.5 + 60.0)
-		_light_orbs(Vector2(left_end, y - 10), Vector2(tx + 60.0, y - 10))
+		var a := minf(from, to) - 120.0
+		var b := maxf(from, to) + 60.0
+		_doodle_flash_band(Vector2((a + b) * 0.5, y - 10), (b - a) * 0.5)
+		_light_orbs(Vector2(a, y - 10), Vector2(b, y - 10))
 	# 오른쪽 끝에 도착하면 잠깐 뒤 돌아서서 상대를 본다(합이 이어지는 동안 그 자리에 머문다)
-	crystal_hold = nth == 0
-	if nth == 0:
+	crystal_hold = nth != 1
+	if nth != 1:
 		get_tree().create_timer(0.35).timeout.connect(func():
 			if crystal_hold:
 				p.scale.x = -absf(p.scale.x))
