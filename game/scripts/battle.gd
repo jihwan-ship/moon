@@ -2256,10 +2256,10 @@ func _x_flash(c: Vector2) -> void:
 		tw.chain().tween_callback(o.queue_free)
 
 
-## 뒤랑달: 보내 준 롤랑 스샷 두 장(오른쪽을 보는 그림이라 왼쪽에서 오른쪽을 보는 정시우와 방향이 같다)을 그대로 따른다.
-## 자세만 (탁) 바뀌고, 칼이 손을 축으로 휩쓴 자리에 낙서 같은 먹물 자국이 칼끝부터 남는다.
-## 1타: 칼끝이 아래 앞 + 자국이 칼끝에서 아래로 휘어 몸 쪽으로 돌아온다
-## 2타: 칼이 수평 + 자국이 칼끝에서 위로 휘어 솟는다
+## 뒤랑달(보내 준 스케치대로, 왼쪽에 서는 정시우 기준). 원작 스샷은 오른쪽에 서는 롤랑 기준이라 그대로 쓰지 않는다.
+## 자세만 (탁) 바뀐다: 칼을 휘두르고 난 뒤라 칼은 뒤쪽(왼쪽)을 향하고, 정시우 앞(상대 쪽)에는
+## 정시우를 중심으로 위에서 아래까지 크게 휜 초승달 ")" 이 남는다(원작 영상의 그 모양을 낙서 느낌으로).
+## 1타는 칼끝이 뒤쪽 아래, 2타는 칼이 뒤쪽으로 수평. 초승달은 1타는 아래로, 2타는 위로 조금 돌며 사라진다
 func _strike_stick_durandal(side: Dictionary, _dd: Dictionary) -> void:
 	var p: Puppet = pup["s"]
 	var nth: int = side.get("strikes", 0)
@@ -2270,83 +2270,49 @@ func _strike_stick_durandal(side: Dictionary, _dd: Dictionary) -> void:
 	await wait(0.12)
 	Sfx.play("swing")
 	p.set_pose(Poses.get_pose("k", "durandal_2" if up else "durandal_1"))
-	_ink_swipe(p, -80.0 if up else 75.0)
+	var me := _body("s")
+	var R := maxf(220.0, _body("t").x - 30.0 - me.x)
+	_doodle_moon_big(me, R, 50.0, -16.0 if up else 16.0)
 	await wait(0.06)
 	Sfx.play("slash")
 	_shake(10, 0.2)
 	_hitstop(0.07)
 
 
-## 손을 축으로 칼끝에서 sweep도(+는 아래로, -는 위로) 휩쓴 낙서 먹물 자국. 칼 쪽이 넓고 끝으로 갈수록 가늘어진다
-func _ink_swipe(p: Puppet, sweep: float) -> void:
-	var hand: Vector2 = p.j["handF"].global_position
-	var tip := p.prop_tip("F")
-	var R := hand.distance_to(tip) * 1.04
-	var a0 := rad_to_deg((tip - hand).angle())
-	var ink := Color(0.08, 0.07, 0.07)
+## 크게 휜 낙서 초승달 ")": c를 중심으로 반지름 r, 가운데 두께 thick. 흰 속 + 삐뚤빼뚤한 검은 테두리.
+## 바로 나타나 잠깐 버틴 뒤 turn도 돌며 사라진다
+func _doodle_moon_big(c: Vector2, r: float, thick: float, turn: float) -> void:
 	var root := Node2D.new()
-	root.position = hand
+	root.position = c
 	root.z_index = 44
 	fxl.add_child(root)
-	var n := 22
+	var n := 30
 	var outer := PackedVector2Array()
 	var inner := PackedVector2Array()
 	for i in n + 1:
 		var u := float(i) / n
-		var dir := Vector2.from_angle(deg_to_rad(a0 + sweep * u))
-		outer.append(dir * R * (1.0 + randf_range(-0.03, 0.03)))
-		inner.append(dir * R * lerpf(0.55, 0.97, pow(u, 0.8)) * (1.0 + randf_range(-0.03, 0.03)))
+		var dir := Vector2.from_angle(deg_to_rad(lerpf(-95.0, 95.0, u)))
+		var w := sin(PI * u)
+		outer.append(dir * (r + randf_range(-5, 5) * w))
+		if i > 0 and i < n:
+			inner.append(dir * (r - thick * pow(w, 0.8) + randf_range(-4, 4) * w))
 	inner.reverse()
 	var poly := outer + inner
 	var fill := Polygon2D.new()
 	fill.polygon = poly
-	fill.color = Color(0.96, 0.95, 0.92, 0.9)
+	fill.color = Color(0.97, 0.96, 0.93, 0.95)
 	root.add_child(fill)
 	var edge := Line2D.new()
 	edge.points = poly + PackedVector2Array([poly[0]])
-	edge.width = 4.0
-	edge.default_color = ink
+	edge.width = 5.0
+	edge.default_color = Color(0.08, 0.07, 0.07)
 	edge.joint_mode = Line2D.LINE_JOINT_ROUND
 	root.add_child(edge)
-	# 먹물 줄: 자국을 따라 긁힌 듯한 검은 줄 몇 개
-	for k in 6:
-		var rr := R * randf_range(0.62, 0.96)
-		var s0 := randf_range(0.0, 0.25)
-		var s1 := randf_range(0.45, 0.9)
-		var pts := PackedVector2Array()
-		for i in 13:
-			var u := lerpf(s0, s1, i / 12.0)
-			if rr < R * lerpf(0.55, 0.97, pow(u, 0.8)):
-				break
-			pts.append(Vector2.from_angle(deg_to_rad(a0 + sweep * u)) * (rr + randf_range(-3, 3)))
-		if pts.size() < 2:
-			continue
-		var l := Line2D.new()
-		l.points = pts
-		l.width = randf_range(2.0, 4.5)
-		l.default_color = ink
-		root.add_child(l)
-	# 칼끝 쪽 바깥으로 삐친 붓 자국과 먹물 방울
-	for k in 10:
-		var u := randf_range(0.0, 0.6)
-		var dir := Vector2.from_angle(deg_to_rad(a0 + sweep * u))
-		var l := Line2D.new()
-		var r0 := R * randf_range(0.7, 0.95)
-		l.points = PackedVector2Array([dir * r0, dir * (r0 + randf_range(15, 35))])
-		l.width = randf_range(2.0, 4.0)
-		l.default_color = ink
-		root.add_child(l)
-	for k in 6:
-		var dot := Polygon2D.new()
-		var rr := randf_range(3, 7)
-		var pts := PackedVector2Array()
-		for i in 7:
-			pts.append(Vector2.from_angle(TAU * i / 7.0) * rr * randf_range(0.7, 1.2))
-		dot.polygon = pts
-		dot.color = ink
-		dot.position = Vector2.from_angle(deg_to_rad(a0 + sweep * randf_range(0.1, 0.9))) * R * randf_range(1.05, 1.2)
-		root.add_child(dot)
+	root.scale = Vector2(0.92, 0.92)
 	var tw := root.create_tween()
+	tw.tween_property(root, "scale", Vector2.ONE, 0.06)
 	tw.tween_interval(0.4)
+	tw.set_parallel(true)
+	tw.tween_property(root, "rotation_degrees", turn, 0.45)
 	tw.tween_property(root, "modulate:a", 0.0, 0.45)
-	tw.tween_callback(root.queue_free)
+	tw.chain().tween_callback(root.queue_free)
