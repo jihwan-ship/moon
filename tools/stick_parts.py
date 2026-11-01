@@ -106,7 +106,7 @@ save('k_boot', img, -10, -6)
 # 이름: (원본에서 손잡이 위치, 크기, 뒤집기). 묵 공방 칼은 처음부터 칼날이 오른쪽이라 뒤집지 않는다
 WEAPONS = {'pistol': ((245, 128), 0.24, True), 'shotgun': ((262, 128), 0.42, True), 'greatsword': ((295, 122), 0.55, True),
            'katana': ((100, 130), 0.7, False), 'crystal_sword': ((58, 56), 0.4, False),
-           'durandal': ((80, 118), 0.8, False), 'sheath': ((127, 30), 0.85, False)}
+           'durandal': ((80, 118), 0.8, False), 'sheath': ((127, 30), 0.6, False)}
 # 겹쳐 그린 선이 많은 칼 그림은 굵히거나 메우면 선이 뭉쳐 검게 칠해지므로 살짝만 굵힌다
 THIN = {'katana', 'crystal_sword', 'durandal', 'sheath'}
 for name, ((gx, gy), wf, flip) in WEAPONS.items():

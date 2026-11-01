@@ -2256,106 +2256,97 @@ func _x_flash(c: Vector2) -> void:
 		tw.chain().tween_callback(o.queue_free)
 
 
-## 뒤랑달(원작 영상 2분 15~18초를 좌우만 뒤집어서. 원작은 롤랑이 오른쪽, 정시우는 왼쪽에 선다)
-## 1타는 칼끝을 아래 앞으로, 2타는 칼을 수평으로 뻗은 자세로 (탁) 바뀐다(보내 준 롤랑 자세 그림). 이펙트는 두 번 다 같은 순서:
-## 1) 상대 자리에 하얀 섬광이 터지고 상대를 가르는 빛줄기 한 줄
-## 2) 정시우를 중심으로 한 큰 원의 상대 쪽 테두리에 크고 많이 휜 하얀 초승달 ")" 이 빛나며 0.35초 버틴다
-## 3) 초승달이 가는 은빛 호 여러 줄로 갈라져 원을 따라 돌며 사라진다. 1타는 아래로, 2타는 위로
+## 뒤랑달: 보내 준 롤랑 스샷 두 장(오른쪽을 보는 그림이라 왼쪽에서 오른쪽을 보는 정시우와 방향이 같다)을 그대로 따른다.
+## 자세만 (탁) 바뀌고, 칼이 손을 축으로 휩쓴 자리에 낙서 같은 먹물 자국이 칼끝부터 남는다.
+## 1타: 칼끝이 아래 앞 + 자국이 칼끝에서 아래로 휘어 몸 쪽으로 돌아온다
+## 2타: 칼이 수평 + 자국이 칼끝에서 위로 휘어 솟는다
 func _strike_stick_durandal(side: Dictionary, _dd: Dictionary) -> void:
 	var p: Puppet = pup["s"]
 	var nth: int = side.get("strikes", 0)
 	side["strikes"] = nth + 1
 	var up := nth % 2 == 1
 	fx_hold += 1
-	get_tree().create_timer(1.6, true, false, false).timeout.connect(func(): fx_hold -= 1)
+	get_tree().create_timer(1.3, true, false, false).timeout.connect(func(): fx_hold -= 1)
 	await wait(0.12)
 	Sfx.play("swing")
 	p.set_pose(Poses.get_pose("k", "durandal_2" if up else "durandal_1"))
-	var me := _body("s")
-	var tgt := _body("t")
-	_burst_flash(tgt, 1.0)
-	_light_line(tgt, -65.0 if up else 65.0, 300, 5, 0.04, 0.5)
-	# 원작처럼 원의 중심은 정시우 뒤쪽, 가늘고 큰 초승달이 두 사람 사이(상대 바로 앞)에 걸린다
-	var cen := me + Vector2(-140, 0)
-	var R := maxf(260.0, tgt.x - 20.0 - cen.x)
-	_glow_crescent(cen, R, -105.0, 105.0, 46.0, 0.35)
-	_silver_shards(cen, R, -105.0, 105.0, -60.0 if up else 60.0, 0.35)
+	_ink_swipe(p, -80.0 if up else 75.0)
 	await wait(0.06)
 	Sfx.play("slash")
-	_shake(12, 0.22)
-	_hitstop(0.08)
+	_shake(10, 0.2)
+	_hitstop(0.07)
 
 
-## 빛나는 초승달(가운데가 두껍고 양끝이 뾰족). 흰 속 + 덧그리는 빛 번짐. 빠르게 그려지고 hold초 버틴 뒤 사라진다
-func _glow_crescent(c: Vector2, r: float, a0: float, a1: float, thick: float, hold: float) -> void:
+## 손을 축으로 칼끝에서 sweep도(+는 아래로, -는 위로) 휩쓴 낙서 먹물 자국. 칼 쪽이 넓고 끝으로 갈수록 가늘어진다
+func _ink_swipe(p: Puppet, sweep: float) -> void:
+	var hand: Vector2 = p.j["handF"].global_position
+	var tip := p.prop_tip("F")
+	var R := hand.distance_to(tip) * 1.04
+	var a0 := rad_to_deg((tip - hand).angle())
+	var ink := Color(0.08, 0.07, 0.07)
 	var root := Node2D.new()
-	root.position = c
+	root.position = hand
 	root.z_index = 44
 	fxl.add_child(root)
-	var layers := []
-	for spec in [[1.9, Color(1, 1, 1, 0.22)], [1.3, Color(1, 1, 1, 0.45)], [1.0, Color(1, 1, 1, 1.0)]]:
-		var poly := Polygon2D.new()
-		poly.color = spec[1]
-		poly.material = Fx.add_mat()
-		root.add_child(poly)
-		layers.append([poly, spec[0]])
-	var build := func(t: float) -> void:
-		var n := 48
-		var m := maxi(2, int(n * t))
-		for L in layers:
-			var outer := PackedVector2Array()
-			var inner := PackedVector2Array()
-			for i in m + 1:
-				var u := float(i) / n
-				var ang := deg_to_rad(lerpf(a0, a1, u))
-				var dir := Vector2(cos(ang), sin(ang))
-				var w := thick * pow(sin(PI * clampf(u / maxf(t, 0.01), 0.0, 1.0)), 0.7)
-				outer.append(dir * (r + w * (L[1] - 1.0) * 0.5))
-				inner.append(dir * (r - w * L[1]))
-			inner.reverse()
-			(L[0] as Polygon2D).polygon = outer + inner
-	build.call(0.02)
-	var tw := root.create_tween()
-	tw.tween_method(build, 0.02, 1.0, 0.07).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	tw.tween_interval(hold)
-	tw.tween_property(root, "modulate:a", 0.0, 0.12)
-	tw.tween_callback(root.queue_free)
-
-
-## 초승달이 갈라진 가는 은빛 호들. delay초 뒤 나타나 원을 따라 turn도 돌며 사라진다(+는 시계 방향)
-func _silver_shards(c: Vector2, r: float, a0: float, a1: float, turn: float, delay: float) -> void:
-	for k in 9:
-		var root := Node2D.new()
-		root.position = c + Vector2(randf_range(-10, 10), randf_range(-10, 10))
-		root.z_index = 44
-		fxl.add_child(root)
-		var rr := r + randf_range(-70, 25)
-		var s0 := lerpf(a0, a1, randf_range(0.0, 0.35))
-		var s1 := lerpf(a0, a1, randf_range(0.65, 1.0))
+	var n := 22
+	var outer := PackedVector2Array()
+	var inner := PackedVector2Array()
+	for i in n + 1:
+		var u := float(i) / n
+		var dir := Vector2.from_angle(deg_to_rad(a0 + sweep * u))
+		outer.append(dir * R * (1.0 + randf_range(-0.03, 0.03)))
+		inner.append(dir * R * lerpf(0.55, 0.97, pow(u, 0.8)) * (1.0 + randf_range(-0.03, 0.03)))
+	inner.reverse()
+	var poly := outer + inner
+	var fill := Polygon2D.new()
+	fill.polygon = poly
+	fill.color = Color(0.96, 0.95, 0.92, 0.9)
+	root.add_child(fill)
+	var edge := Line2D.new()
+	edge.points = poly + PackedVector2Array([poly[0]])
+	edge.width = 4.0
+	edge.default_color = ink
+	edge.joint_mode = Line2D.LINE_JOINT_ROUND
+	root.add_child(edge)
+	# 먹물 줄: 자국을 따라 긁힌 듯한 검은 줄 몇 개
+	for k in 6:
+		var rr := R * randf_range(0.62, 0.96)
+		var s0 := randf_range(0.0, 0.25)
+		var s1 := randf_range(0.45, 0.9)
 		var pts := PackedVector2Array()
-		for i in 33:
-			var ang := deg_to_rad(lerpf(s0, s1, i / 32.0))
-			pts.append(Vector2(cos(ang), sin(ang)) * rr)
-		for layer in 2:
-			var l := Line2D.new()
-			l.points = pts
-			l.width = randf_range(10, 16) if layer == 0 else randf_range(2.5, 5.0)
-			l.default_color = Color(1, 1, 1, 0.18 if layer == 0 else 0.95)
-			l.material = Fx.add_mat()
-			var curve := Curve.new()
-			curve.add_point(Vector2(0, 0.0))
-			curve.add_point(Vector2(0.5, 1.0))
-			curve.add_point(Vector2(1, 0.0))
-			l.width_curve = curve
-			root.add_child(l)
-		root.modulate.a = 0.0
-		var tw := root.create_tween()
-		tw.tween_interval(delay + k * 0.015)
-		tw.tween_property(root, "modulate:a", 1.0, 0.03)
-		tw.set_parallel(true)
-		tw.tween_property(root, "rotation_degrees", turn * randf_range(0.75, 1.25), 0.9).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tw.tween_property(root, "modulate:a", 0.0, 0.55).set_delay(0.4)
-		tw.chain().tween_callback(root.queue_free)
-		if k % 3 == 0:
-			var ang := deg_to_rad(lerpf(s0, s1, 0.5))
-			Fx.sparkle(fxl, c + Vector2(cos(ang), sin(ang)) * rr, 0.6, delay + 0.05)
+		for i in 13:
+			var u := lerpf(s0, s1, i / 12.0)
+			if rr < R * lerpf(0.55, 0.97, pow(u, 0.8)):
+				break
+			pts.append(Vector2.from_angle(deg_to_rad(a0 + sweep * u)) * (rr + randf_range(-3, 3)))
+		if pts.size() < 2:
+			continue
+		var l := Line2D.new()
+		l.points = pts
+		l.width = randf_range(2.0, 4.5)
+		l.default_color = ink
+		root.add_child(l)
+	# 칼끝 쪽 바깥으로 삐친 붓 자국과 먹물 방울
+	for k in 10:
+		var u := randf_range(0.0, 0.6)
+		var dir := Vector2.from_angle(deg_to_rad(a0 + sweep * u))
+		var l := Line2D.new()
+		var r0 := R * randf_range(0.7, 0.95)
+		l.points = PackedVector2Array([dir * r0, dir * (r0 + randf_range(15, 35))])
+		l.width = randf_range(2.0, 4.0)
+		l.default_color = ink
+		root.add_child(l)
+	for k in 6:
+		var dot := Polygon2D.new()
+		var rr := randf_range(3, 7)
+		var pts := PackedVector2Array()
+		for i in 7:
+			pts.append(Vector2.from_angle(TAU * i / 7.0) * rr * randf_range(0.7, 1.2))
+		dot.polygon = pts
+		dot.color = ink
+		dot.position = Vector2.from_angle(deg_to_rad(a0 + sweep * randf_range(0.1, 0.9))) * R * randf_range(1.05, 1.2)
+		root.add_child(dot)
+	var tw := root.create_tween()
+	tw.tween_interval(0.4)
+	tw.tween_property(root, "modulate:a", 0.0, 0.45)
+	tw.tween_callback(root.queue_free)
