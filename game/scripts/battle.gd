@@ -1070,6 +1070,8 @@ func _banner(who: String) -> Banner:
 func _pair(A: Dictionary, B: Dictionary) -> void:
 	var da: Dictionary = A["q"][A["i"]]
 	var db: Dictionary = B["q"][B["i"]]
+	A["cur"] = A["i"]
+	B["cur"] = B["i"]
 	var va := _roll(A, da)
 	var vb := _roll(B, db)
 	banner_s.set_value(va, da["t"])
@@ -1214,6 +1216,7 @@ func _atk_vs_def(X: Dictionary, Y: Dictionary, vx: int, vy: int, dx: Dictionary,
 
 func _one_sided(X: Dictionary, Y: Dictionary) -> void:
 	var dx: Dictionary = X["q"][X["i"]]
+	X["cur"] = X["i"]
 	X["i"] += 1
 	_banner(X["who"]).spent = X["i"]
 	if not _is_atk(dx):
@@ -1402,6 +1405,11 @@ func _hit(X: Dictionary, Y: Dictionary, value: int, dd: Dictionary) -> void:
 		Fx.float_text(fxl, _body("s") + Vector2(0, -220), GameData.STATUS[on_hit]["name"] + "!", Color("ffb16a"), 34, ft)
 	if yw == "s" and randf() < 0.35:
 		say("s", GameData.LINES["s_hurt"].pick_random(), 0.9)
+	elif yw == "t" and Cfg.mode == "sium":
+		# 엄지척 아재는 맞을 때마다 "아이고난!"
+		Sfx.play(["aigo1", "aigo2"].pick_random(), 0.0, 0.04)
+		if randf() < 0.3:
+			say("t", GameData.LINES["t_hurt"].pick_random(), 0.9)
 	elif yw == "t" and randf() < 0.3:
 		Sfx.play("meow", -4)
 		say("t", GameData.LINES["t_hurt"].pick_random(), 0.9)
@@ -2092,9 +2100,7 @@ func _face_right() -> void:
 ## 지나간 자리에 먹물 호 두 개가 X자로 엇갈린다. 두 번째 베기는 반대편에서 돌아오며 X자 섬광이 터진다
 func _strike_stick_crystal(side: Dictionary, dd: Dictionary) -> void:
 	var p: Puppet = pup["s"]
-	# 주사위 두 개가 똑같아 위치로는 구분이 안 되므로 몇 번째 베기인지 따로 센다
-	var nth: int = side.get("strikes", 0)
-	side["strikes"] = nth + 1
+	var nth := _atk_nth(side)
 	var tgt := _body("t")
 	var tx: float = pup["t"].position.x
 	var back := nth % 2 == 1          # 첫 베기는 오른쪽으로, 두 번째는 오른쪽에서 왼쪽으로 관통
@@ -2272,9 +2278,7 @@ func _x_flash(c: Vector2) -> void:
 ## 1타는 칼끝이 뒤쪽 아래, 2타는 칼이 뒤쪽으로 수평. 초승달은 1타는 아래로, 2타는 위로 조금 돌며 사라진다
 func _strike_stick_durandal(side: Dictionary, _dd: Dictionary) -> void:
 	var p: Puppet = pup["s"]
-	var nth: int = side.get("strikes", 0)
-	side["strikes"] = nth + 1
-	var up := nth % 2 == 1
+	var up := _atk_nth(side) % 2 == 1
 	fx_hold += 1
 	get_tree().create_timer(1.3, true, false, false).timeout.connect(func(): fx_hold -= 1)
 	await wait(0.04 if up else 0.12)
@@ -2405,3 +2409,13 @@ func _doodle_flair(c: Vector2, r: float, turn: float) -> void:
 		tw2.tween_property(dot, "position", start + Vector2.from_angle(ang) * randf_range(60, 160), 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 		tw2.tween_property(dot, "modulate:a", 0.0, 0.4).set_delay(0.3)
 		tw2.chain().tween_callback(dot.queue_free)
+
+
+## 지금 굴리는 주사위가 이 책장의 몇 번째 공격 주사위인지(0부터). 앞 주사위가 막히거나 져서 동작이 안 나갔어도 자리로 센다
+func _atk_nth(side: Dictionary) -> int:
+	var q: Array = side["q"]
+	var n := 0
+	for k in mini(int(side.get("cur", 0)), q.size()):
+		if _is_atk(q[k]):
+			n += 1
+	return n
