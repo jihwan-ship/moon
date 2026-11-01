@@ -1122,7 +1122,7 @@ func _pair(A: Dictionary, B: Dictionary) -> void:
 	banner_t.spent = B["i"]
 	banner_s.queue_redraw()
 	banner_t.queue_redraw()
-	await _reset_pair(_rapid(A) and A["i"] < A["q"].size())
+	await _reset_pair(_rapid(A) and A["i"] < A["q"].size(), _rapid_hold(A))
 
 
 ## 연사하는 책장(로직 아틀리에): 주사위 사이에 뜸을 들이지 않고 바로 다음 발을 쏜다
@@ -1131,12 +1131,17 @@ func _rapid(side: Dictionary) -> bool:
 
 
 ## 합 하나가 끝나면 둘 다 맞닿는 자리로 돌아온다. fast면 쏘던 자세 그대로 상대만 금방 돌아온다
-func _reset_pair(fast := false) -> void:
+## 연사하는 책장의 다음 주사위까지 멈추는 시간(로직 아틀리에는 원작처럼 1초쯤, 뒤랑달은 1타 뒤 곧바로 2타)
+func _rapid_hold(side: Dictionary) -> float:
+	return float(side["def"].get("rapid_hold", 0.55))
+
+
+func _reset_pair(fast := false, hold := 0.55) -> void:
 	if not crystal_hold:
 		_face_right()
 	if fast:
-		# 원작처럼 쏜 자세 그대로 1초쯤 멈췄다가 다음 발. 상대만 제자리로 돌아온다
-		await wait(0.55)
+		# 원작처럼 쏜(벤) 자세 그대로 잠깐 멈췄다가 다음 주사위. 상대만 제자리로 돌아온다
+		await wait(hold)
 		var cx := (HOME["s"] + HOME["t"]) / 2.0
 		_slide("t", cx - _dir("t") * CONTACT, 0.15, Tween.TRANS_SINE)
 		if not T["broken"]:
@@ -1216,7 +1221,7 @@ func _one_sided(X: Dictionary, Y: Dictionary) -> void:
 	await wait(0.08 if _rapid(X) else 0.28)
 	await _strike(X["who"], X, dx)
 	await _hit(X, Y, v, dx)
-	await _reset_pair(_rapid(X) and X["i"] < X["q"].size())
+	await _reset_pair(_rapid(X) and X["i"] < X["q"].size(), _rapid_hold(X))
 
 
 func _win_focus(side: Dictionary, n: int) -> void:
@@ -2267,7 +2272,7 @@ func _strike_stick_durandal(side: Dictionary, _dd: Dictionary) -> void:
 	var up := nth % 2 == 1
 	fx_hold += 1
 	get_tree().create_timer(1.3, true, false, false).timeout.connect(func(): fx_hold -= 1)
-	await wait(0.12)
+	await wait(0.04 if up else 0.12)
 	Sfx.play("swing")
 	p.set_pose(Poses.get_pose("k", "durandal_2" if up else "durandal_1"))
 	var me := _body("s")
