@@ -11,6 +11,13 @@ const DICE := {
 }
 
 const PLAYER := {"hp": 80, "mental": 40, "energy": 3, "hand": 5, "slots": 3, "focus_max": 10}
+# 정시우 모드는 눈물 콧물 빠지는 난이도: 체력과 멘탈이 적고, 기력은 3에서 시작해 진급 뒤에도 4까지만,
+# 퓨리오소까지 오래 걸리고, 진급할 때 체력도 조금만 돌아온다
+const PLAYER_SIUM := {"hp": 75, "mental": 36, "energy": 3, "energy_late": 4, "hand": 5, "slots": 3, "focus_max": 14, "promote_heal": 20}
+
+
+static func player() -> Dictionary:
+	return PLAYER_SIUM if Cfg.mode == "sium" else PLAYER
 
 static func d(t: String, lo: int, hi: int) -> Dictionary:
 	return {"t": t, "min": lo, "max": hi}
@@ -68,7 +75,7 @@ static func tiger_cards() -> Dictionary:
 		"punch": {"name": "따봉펀치" if Cfg.mode == "sium" else "냥냥펀치", "dice": [d("blunt", 3, 6), d("blunt", 2, 5)], "anim": "punch"},
 		"claw": {"name": "할퀴기", "dice": [d("slash", 4, 8)], "anim": "claw"},
 		"eat": {"name": "짬밥 섭취", "dice": [d("block", 4, 8)], "anim": "", "gimmick": "heal",
-			"desc": "이 책장에 피해를 주지 못하면 턴 끝에 체력 20% 회복"},
+			"desc": "이 책장에 피해를 주지 못하면 턴 끝에 체력 %d%% 회복" % (25 if Cfg.mode == "sium" else 20)},
 		"k2": {"name": "K2 사격", "dice": [d("pierce", 3, 7), d("pierce", 3, 7), d("pierce", 3, 7)], "anim": "shoot", "ammo": 3,
 			"desc": "탄약 3 소모"},
 		"supply": {"name": "탄약 보급", "dice": [], "anim": "", "gimmick": "supply", "desc": "주사위 없음. 탄약을 채운다. 반격 기회!"},
@@ -77,6 +84,11 @@ static func tiger_cards() -> Dictionary:
 			"desc": "적중 시 다음 턴 기력 -1"},
 		"duck": {"name": "얼차려: 오리걸음", "dice": [d("slash", 3, 6), d("blunt", 3, 6)], "anim": "command", "on_hit": "duck",
 			"desc": "적중 시 다음 턴 회피 주사위 사용 불가"},
+		# 정시우 모드 전용
+		"guard": {"name": "엄지 방어", "dice": [d("block", 6, 10), d("blunt", 5, 9)], "anim": "punch",
+			"desc": "막아 내고 되받아친다"},
+		"rage": {"name": "말년 병장의 분노", "dice": [d("slash", 8, 13), d("slash", 8, 13), d("blunt", 10, 15)], "anim": "baton",
+			"mental_bonus": 4, "desc": "세 번 몰아친다. 멘탈 피해가 크다."},
 	}
 
 const STATUS := {
@@ -86,6 +98,24 @@ const STATUS := {
 }
 
 # 짬타이거 계급. 쓰러뜨리면 진급한다
+# 정시우 모드: 체력이 훨씬 많고, 행동 수가 정시우 칸 수 이상이라 막지 못한 행동은 그대로 맞는다.
+# bonus는 모든 주사위에 더하는 값, rage는 턴마다 쌓이는 분노(주사위 +1씩, rage_max까지)
+const PHASES_SIUM := [
+	{"rank": "이병", "n": 1, "hp": 80, "mental": 32, "intents": 2, "ammo": 0, "bonus": 0, "rage_max": 2, "heal": 0.25,
+		"pool": ["punch", "claw", "eat", "guard"]},
+	{"rank": "일병", "n": 2, "hp": 100, "mental": 38, "intents": 3, "ammo": 9, "bonus": 0, "rage_max": 2, "heal": 0.25,
+		"pool": ["punch", "claw", "eat", "k2", "guard"]},
+	{"rank": "상병", "n": 3, "hp": 130, "mental": 44, "intents": 3, "ammo": 9, "bonus": 1, "rage_max": 3, "heal": 0.25,
+		"pool": ["punch", "claw", "eat", "k2", "baton", "guard"]},
+	{"rank": "병장", "n": 4, "hp": 160, "mental": 50, "intents": 4, "ammo": 9, "bonus": 2, "rage_max": 4, "heal": 0.3,
+		"pool": ["claw", "eat", "k2", "baton", "pushup", "duck", "rage"]},
+]
+
+
+static func phases() -> Array:
+	return PHASES_SIUM if Cfg.mode == "sium" else PHASES
+
+
 const PHASES := [
 	{"rank": "이병", "n": 1, "hp": 45, "mental": 24, "intents": 1, "ammo": 0, "pool": ["punch", "claw", "eat"]},
 	{"rank": "일병", "n": 2, "hp": 60, "mental": 30, "intents": 2, "ammo": 6, "pool": ["punch", "claw", "eat", "k2"]},

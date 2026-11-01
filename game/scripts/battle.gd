@@ -401,7 +401,7 @@ func _draw_energy(c: Control) -> void:
 func _draw_focus(c: Control) -> void:
 	if P.is_empty():
 		return
-	var mx: int = GameData.PLAYER["focus_max"]
+	var mx: int = GameData.player()["focus_max"]
 	c.draw_string(fb, Vector2(0, 14), "투지", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("b9ad9a"))
 	for i in mx:
 		var r := Rect2(40 + i * 13, 3, 10, 14)
@@ -545,7 +545,10 @@ func _dialogue(lines_: Array) -> void:
 			pup["t"].pose("command" if "!" in ln[1] else "idle", 0.2)
 		elif who == "s":
 			pup["s"].pose("cheer" if "!" in ln[1] else "idle", 0.2)
-		await dialog_next
+		if test_mode == "sim":
+			await wait(0.05)
+		else:
+			await dialog_next
 		Sfx.play("click", -8)
 	dialog.visible = false
 	pup["s"].pose("idle", 0.2)
@@ -553,15 +556,12 @@ func _dialogue(lines_: Array) -> void:
 
 
 func _new_game() -> void:
-	var pl: Dictionary = GameData.PLAYER
+	var pl: Dictionary = GameData.player()
 	P = {"hp": pl["hp"], "max_hp": pl["hp"], "mental": pl["mental"], "max_mental": pl["mental"], "broken": false, "skip": false,
 		"energy": pl["energy"], "max_energy": pl["energy"], "status": {}, "pending": {}, "focus": 0}
 	var sium := Cfg.mode == "sium"
 	cards = GameData.sium_cards() if sium else GameData.player_cards()
 	tcards = GameData.tiger_cards()
-	if sium:
-		P["energy"] = 4
-		P["max_energy"] = 4
 	deck = (GameData.SIUM_DECK if sium else GameData.DECK).duplicate()
 	deck.shuffle()
 	discard = []
@@ -580,9 +580,9 @@ func _new_game() -> void:
 
 
 func _setup_tiger() -> void:
-	var ph: Dictionary = GameData.PHASES[phase]
+	var ph: Dictionary = GameData.phases()[phase]
 	T = {"hp": ph["hp"], "max_hp": ph["hp"], "mental": ph["mental"], "max_mental": ph["mental"], "broken": false, "skip": false,
-		"ammo": ph["ammo"], "max_ammo": ph["ammo"]}
+		"ammo": ph["ammo"], "max_ammo": ph["ammo"], "rage": 0}
 	pup["t"].set_rank(ph["n"])
 
 
@@ -610,16 +610,22 @@ func _start_turn() -> void:
 			discard.append(id_)
 	hand = []
 	slots = []
-	_draw_cards(GameData.PLAYER["hand"])
-	if P["focus"] >= GameData.PLAYER["focus_max"] and not hand.has("ult"):
+	_draw_cards(GameData.player()["hand"])
+	if P["focus"] >= GameData.player()["focus_max"] and not hand.has("ult"):
 		hand.append("ult")
 	slots = []
-	var nslots: int = 0 if P["skip"] else GameData.PLAYER["slots"]
+	var nslots: int = 0 if P["skip"] else GameData.player()["slots"]
 	for i in nslots:
 		slots.append("")
+	# 분노: 정시우 모드에서는 턴이 지날수록 짬타이거 주사위가 세진다(오래 끌수록 불리)
+	var rmax: int = int(GameData.phases()[phase].get("rage_max", 0))
+	T["turns"] = int(T.get("turns", 0)) + 1
+	if T["turns"] > 1 and T["rage"] < rmax:
+		T["rage"] += 1
+		Fx.float_text(fxl, _body("t") + Vector2(0, -200), "분노 +%d" % T["rage"], Color("ff5a3a"), 40, ft)
 	intents = []
 	if not T["skip"]:
-		for id_ in _tiger_choose(GameData.PHASES[phase]["intents"]):
+		for id_ in _tiger_choose(GameData.phases()[phase]["intents"]):
 			intents.append({"id": id_, "def": tcards[id_], "used": false, "broken": false})
 	busy = false
 	_refresh_hud()
@@ -636,7 +642,7 @@ func _start_turn() -> void:
 
 
 func _tiger_choose(n: int) -> Array:
-	var ph: Dictionary = GameData.PHASES[phase]
+	var ph: Dictionary = GameData.phases()[phase]
 	var pool: Array = ph["pool"]
 	var out: Array = []
 	var ammo: int = T["ammo"]
@@ -709,6 +715,7 @@ func _rebuild_planning() -> void:
 	for i in intents.size():
 		var cv := CardView.new()
 		cv.setup(intents[i]["id"], intents[i]["def"], true, true)
+		cv.bonus = _tiger_bonus()
 		cv.position = Vector2(_plan_scr("t").x + (i - (intents.size() - 1) / 2.0) * 128 - 59, 82)
 		root.add_child(cv)
 		intent_views.append(cv)
@@ -808,12 +815,13 @@ func _refresh_hud() -> void:
 	_set_bar(hud["s_mt"], P["mental"], P["max_mental"])
 	_set_bar(hud["t_hp"], T["hp"], T["max_hp"])
 	_set_bar(hud["t_mt"], T["mental"], T["max_mental"])
-	var ph: Dictionary = GameData.PHASES[phase]
-	(hud["t_name"] as Label).text = "%s 짬타이거" % ph["rank"]
+	var ph: Dictionary = GameData.phases()[phase]
+	var tb := _tiger_bonus()
+	(hud["t_name"] as Label).text = "%s 짬타이거" % ph["rank"] + ("  (주사위 +%d)" % tb if tb > 0 else "")
 	(hud["mid"] as Label).text = "제 %d막 %d턴" % [phase + 1, turn_no]
 	var rk := ""
-	for i in GameData.PHASES.size():
-		var r: String = GameData.PHASES[i]["rank"]
+	for i in GameData.phases().size():
+		var r: String = GameData.phases()[i]["rank"]
 		rk += ("[%s]" % r if i == phase else r) + ("  " if i < 3 else "")
 	(hud["ranks"] as Label).text = rk
 	var sc := ""
@@ -1039,7 +1047,14 @@ func _roll(side: Dictionary, dd: Dictionary) -> int:
 	var v := randi_range(dd["min"], dd["max"])
 	if side["who"] == "s" and P["status"].has("song"):
 		v += 2
+	if side["who"] == "t":
+		v += _tiger_bonus()
 	return v
+
+
+## 짬타이거 주사위에 더해지는 값: 계급 보너스 + 쌓인 분노
+func _tiger_bonus() -> int:
+	return int(GameData.phases()[phase].get("bonus", 0)) + int(T.get("rage", 0))
 
 
 func _is_atk(dd: Dictionary) -> bool:
@@ -1201,7 +1216,7 @@ func _one_sided(X: Dictionary, Y: Dictionary) -> void:
 func _win_focus(side: Dictionary, n: int) -> void:
 	if side["who"] != "s":
 		return
-	P["focus"] = mini(GameData.PLAYER["focus_max"], P["focus"] + n)
+	P["focus"] = mini(GameData.player()["focus_max"], P["focus"] + n)
 
 
 # ---------------------------------------------------------------- 공격 동작
@@ -1411,7 +1426,7 @@ func _end_turn() -> void:
 		if it["def"].get("gimmick", "") != "heal" or not it["used"]:
 			continue
 		if not it["broken"] and not T["broken"] and T["hp"] > 0:
-			var amt := int(round(T["max_hp"] * 0.2))
+			var amt := int(round(T["max_hp"] * float(GameData.phases()[phase].get("heal", 0.2))))
 			T["hp"] = mini(T["max_hp"], T["hp"] + amt)
 			pup["t"].pose("eat", 0.2)
 			Sfx.play("heal")
@@ -1441,7 +1456,7 @@ func _tiger_down() -> void:
 	pup["t"].pose("down", 0.3)
 	Sfx.play("meow", -2)
 	await wait(1.0)
-	if phase >= GameData.PHASES.size() - 1:
+	if phase >= GameData.phases().size() - 1:
 		await _victory()
 		return
 	# 진급 연출
@@ -1455,14 +1470,14 @@ func _tiger_down() -> void:
 	await tw.finished
 	_setup_tiger()
 	pup["t"].pose("command", 0.01)
-	P["hp"] = mini(P["max_hp"], P["hp"] + 15)
+	P["hp"] = mini(P["max_hp"], P["hp"] + int(GameData.player().get("promote_heal", 15)))
 	P["mental"] = P["max_mental"]
 	P["broken"] = false
 	if phase >= 2:
-		P["max_energy"] = 5 if Cfg.mode == "sium" else 4
+		P["max_energy"] = int(GameData.player().get("energy_late", 4))
 	_refresh_hud()
 	Sfx.play("fanfare")
-	var t := _label("%s 진급!" % GameData.PHASES[phase]["rank"], 96, Color("e8913c"), ft, 16)
+	var t := _label("%s 진급!" % GameData.phases()[phase]["rank"], 96, Color("e8913c"), ft, 16)
 	t.position = Vector2(0, 250)
 	t.size = Vector2(1280, 120)
 	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1510,6 +1525,10 @@ func _result_screen(title: String, sub: String, col: Color, retry: bool) -> void
 
 
 func _victory() -> void:
+	if test_mode == "sim":
+		print("SIM 승리 턴=%d 남은체력=%d" % [turn_no, P["hp"]])
+		get_tree().quit()
+		return
 	Sfx.stop_bgm()
 	pup["t"].pose("idle", 0.4)
 	pup["t"].set_face("happy")
@@ -1520,6 +1539,10 @@ func _victory() -> void:
 
 
 func _defeat() -> void:
+	if test_mode == "sim":
+		print("SIM 패배 계급=%s 턴=%d 짬타이거체력=%d/%d" % [GameData.phases()[phase]["rank"], turn_no, T["hp"], T["max_hp"]])
+		get_tree().quit()
+		return
 	Sfx.stop_bgm()
 	pup["s"].pose("down", 0.4)
 	pup["t"].pose("idle", 0.3)
@@ -1527,7 +1550,7 @@ func _defeat() -> void:
 	Sfx.play("defeat")
 	say("t", "신병은 아직 멀었다냥~", 2.0)
 	await wait(1.6)
-	await _result_screen("포상휴가 취소", "%s 짬타이거에게 당했다...\n짬통은 오늘도 고양이의 것." % GameData.PHASES[phase]["rank"], Color("c9463b"), true)
+	await _result_screen("포상휴가 취소", "%s 짬타이거에게 당했다...\n짬통은 오늘도 고양이의 것." % GameData.phases()[phase]["rank"], Color("c9463b"), true)
 	Sfx.play_bgm("bgm")
 
 
@@ -1565,6 +1588,26 @@ func _run_test() -> void:
 		for i in 2:
 			_on_hand(0)
 		return
+	if test_mode == "sim":
+		# 난이도 확인용: 아주 빠르게 돌리며, 매 턴 쓸 수 있는 책장 중 주사위가 센 것부터 생각 없이 낸다
+		Engine.time_scale = 40.0
+		while true:
+			await wait(0.3)
+			if busy:
+				continue
+			var order := range(hand.size())
+			order.sort_custom(func(a, b): return _card_power(hand[a]) > _card_power(hand[b]))
+			var used := []
+			for i in order:
+				if slots.find("") < 0:
+					break
+				if cards[hand[i]]["cost"] <= _avail_energy():
+					used.append(hand[i])
+					slots[slots.find("")] = hand[i]
+			for id_ in used:
+				hand.erase(id_)
+			_on_go()
+			await wait(0.5)
 	if test_mode == "fight" or test_mode == "auto":
 		while true:
 			await wait(0.3)
@@ -2004,3 +2047,11 @@ func _ring_fx(c: Vector2, rx: float, ry: float, tilt: float, delay: float) -> vo
 	tw.tween_property(root, "rotation_degrees", tilt + 25, 1.1 * MOOK_SLOW)
 	tw.tween_property(root, "modulate:a", 0.0, 0.8 * MOOK_SLOW).set_delay(0.4 * MOOK_SLOW)
 	tw.chain().tween_callback(root.queue_free)
+
+
+## 시험용: 책장의 세기(주사위 최대값 합)
+func _card_power(id_: String) -> int:
+	var t := 0
+	for dd in cards[id_]["dice"]:
+		t += int(dd["max"])
+	return t

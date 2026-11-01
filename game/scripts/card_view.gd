@@ -7,7 +7,7 @@ signal pressed
 const ICONS := {"bayonet": "s_k2", "butt": "s_k2", "burst": "s_k2", "helmet": "s_head", "crawl": "s_boot",
 	"grenade": "s_grenade", "ration": "s_ration", "song": "s_face_shout", "ult": "s_k2",
 	"punch": "t_paw", "claw": "t_claw", "eat": "t_tray", "k2": "t_rifle", "supply": "t_crate", "baton": "t_baton",
-	"pushup": "t_face_shout", "duck": "t_face_shout"}
+	"pushup": "t_face_shout", "duck": "t_face_shout", "guard": "t_paw", "rage": "t_face_shout"}
 
 var id := ""
 var def: Dictionary = {}
