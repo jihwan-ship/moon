@@ -52,6 +52,10 @@ def crescent():
     im = Image.open(SRC + 'crystal_fx.png').convert('L')
     dark = np.array(im) < 128
     line = ndimage.binary_dilation(dark, iterations=4)
+    # 가장자리에 찍힌 점 같은 부스러기는 버리고 초승달 선만 남긴다
+    lab, n = ndimage.label(line)
+    sizes = ndimage.sum(line, lab, range(1, n + 1))
+    line = lab == (np.argmax(sizes) + 1)
     inside = ndimage.binary_fill_holes(line) & ~line
     h, w = dark.shape
     out = np.zeros((h, w, 4), np.uint8)

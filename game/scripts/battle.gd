@@ -2158,7 +2158,7 @@ func _ink_cross(c: Vector2) -> void:
 	for k in 2:
 		var cr := Sprite2D.new()
 		cr.texture = load("res://art/sium/crescent.png")
-		cr.position = c + Vector2(80 if k == 0 else -80, -30)
+		cr.position = c + Vector2(25 if k == 0 else -25, -30)
 		cr.rotation_degrees = -40.0 if k == 0 else 40.0
 		cr.flip_h = k == 1
 		cr.z_index = 44
