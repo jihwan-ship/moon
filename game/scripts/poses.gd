@@ -114,11 +114,11 @@ const K := {
 	# 뒤랑달(원작 롤랑 자세 그림대로). 1타: 다리를 벌리고 팔을 앞 아래로 뻗어 칼끝이 아래 앞을 향한다.
 	# 2타: 팔을 어깨 높이로 쭉 뻗어 칼이 수평(2a) → 다시 팔을 내려 칼끝이 아래 앞(2b)
 	"durandal_1": {"lean": 8, "head": -4, "thighF": -42, "shinF": 30, "thighB": 38, "shinB": 6, "hip_dy": 10, "hip_dx": 6,
-		"upperF": -50, "foreF": -8, "upperB": -10, "foreB": -40, "prop": "k_durandal", "prop_rot": 68, "prop2": ""},
+		"upperF": -50, "foreF": -8, "upperB": -10, "foreB": -40, "prop": "k_durandal", "prop_rot": 60, "prop2": ""},
 	"durandal_2a": {"lean": 0, "head": 2, "thighF": -36, "shinF": 22, "thighB": 34, "shinB": 6, "hip_dy": 6, "hip_dx": 6,
 		"upperF": -92, "foreF": 0, "upperB": -10, "foreB": -40, "prop": "k_durandal", "prop_rot": 92, "prop2": ""},
 	"durandal_2b": {"lean": 6, "head": -2, "thighF": -40, "shinF": 26, "thighB": 36, "shinB": 6, "hip_dy": 8, "hip_dx": 8,
-		"upperF": -66, "foreF": -4, "upperB": -10, "foreB": -40, "prop": "k_durandal", "prop_rot": 88, "prop2": ""},
+		"upperF": -66, "foreF": -4, "upperB": -10, "foreB": -40, "prop": "k_durandal", "prop_rot": 80, "prop2": ""},
 	# 합에서 지고 맞을 때: 웅크리고 두 팔을 얼굴 앞에 엇갈려 막는다
 	"hurt": {"lean": 6, "head": 6, "thighF": -30, "shinF": 30, "thighB": 26, "shinB": 14, "hip_dy": 10, "hip_dx": -10,
 		"upperF": -100, "foreF": -84, "upperB": -165, "foreB": 70, "prop": "", "prop2": "", "zB": 6},

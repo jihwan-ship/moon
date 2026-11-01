@@ -2256,53 +2256,64 @@ func _x_flash(c: Vector2) -> void:
 		tw.chain().tween_callback(o.queue_free)
 
 
-## 뒤랑달(원작 롤랑 자세 그림 세 장대로): 자세만 딱딱 바뀌고, 칼끝에 직접 그린 초승달 궤적이 매달린다.
-## 1타: (탁) 칼끝이 아래 앞을 향한 자세 + 칼끝에서 아래로 휘어 내려가는 궤적
-## 2타: (탁) 팔을 수평으로 뻗은 자세 + 칼끝에서 위로 솟는 궤적 → (탁) 다시 칼끝을 내린 자세 + 아래로 내려가는 궤적
+## 뒤랑달(원작 롤랑 자세 그림 세 장대로): 자세만 딱딱 바뀌고, 칼이 쓸고 지나간 자리에 직접 그린 초승달 궤적이 남는다.
+## 궤적은 칼끝에서 시작해 정시우 쪽으로 휘어 돌아오고, 칼과 궤적 사이가 칼이 지나간 자리다.
+## 1타: 칼끝이 아래 앞을 향한 자세 + 칼끝에서 정시우 발 앞까지 아래로 휘는 궤적
+## 2타: 팔을 수평으로 뻗은 자세 + 칼끝에서 정시우 머리 위까지 위로 휘는 궤적 → 칼끝을 내린 자세 + 아래로 휘는 궤적
 func _strike_stick_durandal(side: Dictionary, _dd: Dictionary) -> void:
 	var p: Puppet = pup["s"]
 	var nth: int = side.get("strikes", 0)
 	side["strikes"] = nth + 1
-	var tgt := _body("t")
 	fx_hold += 1
 	get_tree().create_timer(1.5, true, false, false).timeout.connect(func(): fx_hold -= 1)
+	var me := p.global_position
+	var feet := me + Vector2(30, 190)            # 1타 궤적이 끝나는 곳: 정시우 발 앞 아래(원작처럼 바닥 아래까지 휜다)
+	var over := me + Vector2(60, -330)           # 2타 앞 궤적이 끝나는 곳: 정시우 머리 위
 	await wait(0.12)
+	Sfx.play("swing")
 	if nth % 2 == 0:
-		Sfx.play("swing")
 		p.set_pose(Poses.get_pose("k", "durandal_1"))
-		_blade_trail(p.prop_tip("F"), false, 1.0)
+		_blade_trail(p.prop_tip("F"), feet, me)
 	else:
-		Sfx.play("swing")
 		p.set_pose(Poses.get_pose("k", "durandal_2a"))
-		_blade_trail(p.prop_tip("F"), true, 1.0)
+		_blade_trail(p.prop_tip("F"), over, me)
 		await wait(0.3)
 		Sfx.play("swing")
 		p.set_pose(Poses.get_pose("k", "durandal_2b"))
-		_blade_trail(p.prop_tip("F"), false, 0.8)
-	_doodle_pow(tgt)
+		_blade_trail(p.prop_tip("F"), feet, me)
 	await wait(0.06)
 	Sfx.play("slash")
 	_shake(10, 0.2)
 	_hitstop(0.07)
 
 
-## 칼끝에 매달리는 궤적: 직접 그린 초승달 그림. rise면 칼끝에서 위로, 아니면 아래로 휘어진다.
-## 칼끝 쪽이 진하고 바로 나타났다가 잠깐 뒤 흐려진다
-func _blade_trail(tip: Vector2, rise: bool, size: float) -> void:
+## 직접 그린 초승달 그림을 a(칼끝)에서 b까지 걸쳐 놓는다. 볼록한 쪽은 정시우(me)에게서 먼 바깥쪽을 향한다
+func _blade_trail(a: Vector2, b: Vector2, me: Vector2) -> void:
 	var tex: Texture2D = load("res://art/sium/durandal_fx.png")
+	# 그림 속 두 끝과 가장 볼록한 점
+	var ia := Vector2(32, 0)
+	var ib := Vector2(9, 200)
+	var bulge := Vector2(166, 100)
 	var m := Sprite2D.new()
 	m.texture = tex
 	m.centered = false
-	m.flip_v = rise
-	var h := float(tex.get_height())
-	var sc := 270.0 * size / h
-	m.scale = Vector2.ONE * sc
-	# 그림의 위쪽 끝(32, 0)이 칼끝에 오게 한다(위로 솟을 땐 뒤집었으므로 아래쪽 끝)
-	m.offset = Vector2(-32, -h if rise else 0.0)
-	m.position = tip
-	# 궤적의 먼 끝이 정시우 쪽으로 휘어 돌아오게(원작 그림처럼) 기울인다
-	m.rotation_degrees = -28.0 if rise else 28.0
 	m.z_index = 44
+	var best := -1.0
+	for flip in [false, true]:
+		var bx := bulge.x if not flip else tex.get_width() - bulge.x
+		var pa := Vector2(ia.x if not flip else tex.get_width() - ia.x, ia.y)
+		var pb := Vector2(ib.x if not flip else tex.get_width() - ib.x, ib.y)
+		var sc := a.distance_to(b) / pa.distance_to(pb)
+		var rot := (b - a).angle() - (pb - pa).angle()
+		var where := a + ((Vector2(bx, bulge.y) - pa) * sc).rotated(rot)
+		var d := where.distance_to(me)
+		if d > best:
+			best = d
+			m.flip_h = flip
+			m.offset = -pa
+			m.scale = Vector2.ONE * sc
+			m.rotation = rot
+	m.position = a
 	fxl.add_child(m)
 	var tw := m.create_tween()
 	tw.tween_interval(0.35)
