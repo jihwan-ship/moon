@@ -1081,9 +1081,14 @@ func _pair(A: Dictionary, B: Dictionary) -> void:
 	var ka := _is_atk(da)
 	var kb := _is_atk(db)
 	if ka and kb:
-		# 둘 다 휘두른다
-		_strike("t", B, db)
-		await _strike("s", A, da)
+		# 이긴 쪽만 공격 동작과 이펙트를 낸다(진 쪽은 맞기만 한다). 비기면 둘 다 휘두른다
+		if va > vb:
+			await _strike("s", A, da)
+		elif vb > va:
+			await _strike("t", B, db)
+		else:
+			_strike("t", B, db)
+			await _strike("s", A, da)
 		if va > vb:
 			await _hit(A, B, va, da)
 			_win_focus(A, 1)
