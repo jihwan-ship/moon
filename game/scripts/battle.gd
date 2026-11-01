@@ -2085,14 +2085,15 @@ func _strike_stick_crystal(side: Dictionary, dd: Dictionary) -> void:
 	var tx: float = pup["t"].position.x
 	var back := nth % 2 == 1          # 첫 베기는 오른쪽으로, 두 번째는 오른쪽에서 왼쪽으로 관통
 	var from := p.position.x
-	var to := tx - 170.0 if back else tx + 170.0
+	# 맞은 상대가 밀려나도 겹치지 않게, 상대 뒤로 완전히 지나간다
+	var to := tx - 330.0 if back else tx + 330.0
 	crystal_hold = not back
-	if back:
-		p.scale.x = -absf(p.scale.x)   # 왼쪽을 보고
-	await wait(0.12)
+	await wait(0.3 if back else 0.12)
 	Sfx.play("swing")
 	_burst_flash(_body("s"), 0.6)
 	p.set_pose(Poses.get_pose("k", "crystal_dash"))
+	if back:
+		p.scale.x = -absf(p.scale.x)   # 이미 돌아서 있다(왼쪽을 본다)
 	_slide("s", to, 0.07, Tween.TRANS_QUAD)
 	_streak(Vector2(from, tgt.y + 30), Vector2(to, tgt.y + 30))
 	await wait(0.07)
@@ -2101,7 +2102,10 @@ func _strike_stick_crystal(side: Dictionary, dd: Dictionary) -> void:
 	if back:
 		_x_flash(tgt)
 	else:
-		p.scale.x = -absf(p.scale.x)   # 지나간 뒤 돌아서서 상대를 본다
+		# 지나간 자세 그대로 잠깐 멈췄다가 돌아서서 상대를 본다
+		get_tree().create_timer(0.5).timeout.connect(func():
+			if crystal_hold:
+				p.scale.x = -absf(p.scale.x))
 	_shake(12, 0.25)
 	_hitstop(0.08)
 
