@@ -2272,8 +2272,7 @@ func _strike_stick_durandal(side: Dictionary, _dd: Dictionary) -> void:
 	fx_hold += 1
 	get_tree().create_timer(1.6, true, false, false).timeout.connect(func(): fx_hold -= 1)
 	var mc := _body("s") + Vector2(110, 0)
-	# 1타: 위에서 아래로 그려진다 / 2타: 위아래를 뒤집어 아래에서 위로
-	_doodle_crescent(mc, 230, -110.0, 110.0, 70, up)
+	_durandal_moon(mc, up)
 	_doodle_pow(tgt)
 	await wait(0.08)
 	Sfx.play("slash")
@@ -2281,72 +2280,25 @@ func _strike_stick_durandal(side: Dictionary, _dd: Dictionary) -> void:
 	_hitstop(0.08)
 
 
-## 대충 그린 낙서 초승달: 삐뚤빼뚤한 검은 테두리에 흰 속. a0에서 a1 쪽으로 빠르게 그려지고 잠시 뒤 사라진다
-func _doodle_crescent(c: Vector2, r: float, a0: float, a1: float, thick: float, flip := false) -> void:
-	var fy := -1.0 if flip else 1.0
-	var root := Node2D.new()
-	root.position = c
-	root.z_index = 44
-	fxl.add_child(root)
-	var fill := Polygon2D.new()
-	fill.color = Color(1, 1, 1, 0.95)
-	var edge := Line2D.new()
-	edge.width = 5.0
-	edge.default_color = Color(0.08, 0.07, 0.07)
-	edge.joint_mode = Line2D.LINE_JOINT_ROUND
-	root.add_child(fill)
-	root.add_child(edge)
-	# 손떨림은 미리 정해 두어 그려지는 동안 흔들리지 않게 한다
-	var n := 24
-	var jo := []
-	var ji := []
-	for i in n + 1:
-		jo.append(randf_range(-7, 7))
-		ji.append(randf_range(-6, 6))
-	var draw := func(t: float) -> void:
-		var m := maxi(2, int(n * t))
-		var outer := PackedVector2Array()
-		var inner := PackedVector2Array()
-		for i in m + 1:
-			var u := float(i) / n
-			var ang := deg_to_rad(lerpf(a0, a1, u))
-			var w := thick * sin(PI * clampf(u / maxf(t, 0.01), 0.0, 1.0))
-			var dir := Vector2(cos(ang), sin(ang))
-			dir.y *= fy
-			outer.append(dir * (r + jo[i]))
-			inner.append(dir * (r - w + ji[i]))
-		inner.reverse()
-		var poly := outer + inner
-		if flip:
-			poly.reverse()   # 위아래를 뒤집으면 도는 방향도 뒤집히므로 되돌린다
-		fill.polygon = poly
-		edge.points = poly + PackedVector2Array([poly[0]])
-	draw.call(0.05)
-	var tw := root.create_tween()
-	tw.tween_method(draw, 0.05, 1.0, 0.08)
-	tw.tween_interval(0.45)
-	tw.tween_property(root, "modulate:a", 0.0, 0.6)
-	tw.tween_callback(root.queue_free)
-	# 칼 지나간 자리 낙서 줄 몇 개
-	for k in 3:
-		var l := Line2D.new()
-		l.width = 3.0
-		l.default_color = Color(0.08, 0.07, 0.07)
-		var rr := r + 25 + k * 14
-		var pts := PackedVector2Array()
-		for i in 13:
-			var ang := deg_to_rad(lerpf(a0, a1, (0.15 + k * 0.1) + i / 12.0 * 0.5))
-			pts.append(c + Vector2(cos(ang), sin(ang) * fy) * (rr + randf_range(-4, 4)))
-		l.points = pts
-		l.z_index = 44
-		l.modulate.a = 0.0
-		fxl.add_child(l)
-		var lt := l.create_tween()
-		lt.tween_interval(0.06)
-		lt.tween_property(l, "modulate:a", 1.0, 0.02)
-		lt.tween_interval(0.4)
-		lt.tween_property(l, "modulate:a", 0.0, 0.5)
-		lt.tween_callback(l.queue_free)
+## 직접 그린 초승달 그림. 1타는 위에서 아래로, 2타는 위아래를 뒤집어 아래에서 위로 쭉 펼쳐진다
+func _durandal_moon(c: Vector2, up: bool) -> void:
+	var tex: Texture2D = load("res://art/sium/durandal_fx.png")
+	var sc := 440.0 / tex.get_height()
+	var m := Sprite2D.new()
+	m.texture = tex
+	m.centered = false
+	m.flip_v = up
+	# 펼쳐지기 시작하는 끝(1타는 위, 2타는 아래)을 기준점으로
+	m.offset = Vector2(-tex.get_width() * 0.35, -tex.get_height() if up else 0.0)
+	m.position = c + Vector2(0, 220.0 if up else -220.0)
+	m.scale = Vector2(sc, 0.05)
+	m.z_index = 44
+	fxl.add_child(m)
+	var tw := m.create_tween()
+	tw.tween_property(m, "scale:y", sc, 0.08).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(0.5)
+	tw.tween_property(m, "modulate:a", 0.0, 0.6)
+	tw.tween_callback(m.queue_free)
 
 
 ## 맞은 자리에 "팍" 하는 삐죽삐죽 별(흰 속, 검은 테두리)

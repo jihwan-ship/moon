@@ -1,5 +1,5 @@
 """엄지척 아재(짬타이거 대신)와 직접 그린 총구 이펙트를 게임용 그림으로 만든다.
-art_src/sium/thumb.png, gunfx.png -> game/art/sium/"""
+art_src/sium/thumb.png, gunfx.png, durandal_fx.png -> game/art/sium/"""
 import numpy as np
 from PIL import Image
 from scipy import ndimage
@@ -47,5 +47,27 @@ def gunfx():
     print('gunfx', img.size)
 
 
+def durandal_fx():
+    """뒤랑달 이펙트: 직접 그린 초승달. 안을 하얗게 채우고 검은 테두리를 굵게"""
+    im = Image.open(SRC + 'durandal_fx.png').convert('RGBA')
+    bg = Image.new('RGBA', im.size, (255, 255, 255, 255))
+    bg.alpha_composite(im)
+    dark = np.array(bg.convert('L')) < 128
+    line = ndimage.binary_dilation(dark, iterations=3)
+    lab, n = ndimage.label(line)
+    sizes = ndimage.sum(line, lab, range(1, n + 1))
+    line = lab == (np.argmax(sizes) + 1)
+    inside = ndimage.binary_fill_holes(line) & ~line
+    h, w = dark.shape
+    out = np.zeros((h, w, 4), np.uint8)
+    out[inside] = (250, 250, 248, 240)
+    out[line] = (16, 14, 14, 255)
+    img = Image.fromarray(out, 'RGBA')
+    img = img.crop(img.getbbox())
+    img.save(OUT + 'durandal_fx.png')
+    print('durandal_fx', img.size)
+
+
 thumb()
 gunfx()
+durandal_fx()
