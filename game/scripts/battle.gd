@@ -881,6 +881,7 @@ func _enter_combat() -> void:
 
 func _leave_combat() -> void:
 	crystal_hold = false
+	_face_right()
 	while fx_hold > 0:
 		await wait(0.05)
 	banner_s.visible = false
@@ -2425,42 +2426,67 @@ func _atk_nth(side: Dictionary) -> int:
 	return n
 
 
-## 랑아 공방(원작 롤랑 스샷을 왼쪽에 서는 정시우 기준으로 뒤집어서). 자세만 (탁) 바뀌고 이펙트는 낙서 느낌.
-## 1타: 건틀릿을 앞 위로 할퀴어 올리며 앞쪽에 손톱 자국 세 줄이 휜다
-## 2타: 건틀릿을 몸 뒤로 휘둘러 넘기며 손톱 자국 세 줄이 어깨를 감아 돈다
-## 3타: 상대 앞까지 파고들며 단검을 내지르고, 지나온 길에 긴 줄, 상대 자리에 가로로 번쩍
+## 랑아 공방(원작 영상 19~23초를 왼쪽에 서는 정시우 기준으로 뒤집어서). 자세만 (탁) 바뀌고 이펙트는 낙서 느낌.
+## 1타: 건틀릿으로 할퀴며 상대를 관통해 오른쪽으로 지나가고, 도착한 자리에서 몸을 감는 소용돌이 할퀸 자국
+## 2타: 다시 관통해 왼쪽으로 돌아오며 같은 소용돌이
+## 3타: 단검을 내지르며 다시 오른쪽으로 관통하고, 지나온 길 전체에 가로로 길게 번쩍
 func _strike_stick_ranga(side: Dictionary, _dd: Dictionary) -> void:
 	var p: Puppet = pup["s"]
 	var nth := _atk_nth(side)
 	var tgt := _body("t")
+	var tx: float = pup["t"].position.x
+	var right := nth != 1
+	var from := p.position.x
+	var to := tx + 300.0 if right else tx - 300.0
 	fx_hold += 1
-	get_tree().create_timer(1.0, true, false, false).timeout.connect(func(): fx_hold -= 1)
+	get_tree().create_timer(1.1, true, false, false).timeout.connect(func(): fx_hold -= 1)
+	p.scale.x = absf(p.scale.x) * (1.0 if right else -1.0)
 	await wait(0.06)
 	Sfx.play("swing")
-	if nth == 0:
-		p.set_pose(Poses.get_pose("k", "ranga_1"))
-		var c := _body("s") + Vector2(40, 10)
-		for k in 3:
-			_doodle_arc(c, 190.0 + k * 50.0, 70.0, -75.0, 26.0)
-		_claw_marks(tgt)
-	elif nth == 1:
-		p.set_pose(Poses.get_pose("k", "ranga_2"))
-		var c := _body("s") + Vector2(0, -30)
-		for k in 3:
-			_doodle_arc(c, 150.0 + k * 45.0, 40.0, -170.0, 24.0)
-		_claw_marks(tgt)
+	p.set_pose(Poses.get_pose("k", ["ranga_1", "ranga_2", "ranga_3"][mini(nth, 2)]))
+	_slide("s", to, 0.07, Tween.TRANS_QUAD)
+	var y := tgt.y + 20
+	_doodle_streak_line(Vector2(from, y), Vector2(to, y))
+	await wait(0.07)
+	if nth >= 2:
+		_doodle_flash_band(Vector2((from + to) * 0.5, y - 10), absf(to - from) * 0.6)
+	_scratch_swirl(_body("s") + Vector2(0, -10))
+	# 오른쪽에 도착하면 잠깐 뒤 돌아서서 상대를 본다(합이 이어지는 동안 그 자리에 머문다)
+	crystal_hold = right and nth < 2
+	if right and nth < 2:
+		get_tree().create_timer(0.35).timeout.connect(func():
+			if crystal_hold:
+				p.scale.x = -absf(p.scale.x))
 	else:
-		var x0: float = p.position.x
-		p.set_pose(Poses.get_pose("k", "ranga_3"))
-		_slide("s", tgt.x - 210.0, 0.06, Tween.TRANS_QUAD)
-		await wait(0.06)
-		var y := _body("s").y + 10
-		_doodle_streak_line(Vector2(x0 - 60, y), Vector2(tgt.x - 60, y))
-		_doodle_flash_band(tgt + Vector2(0, 10))
-	await wait(0.05)
+		p.scale.x = absf(p.scale.x)
 	Sfx.play("slash")
 	_shake(8, 0.15)
 	_hitstop(0.05)
+
+
+## 몸을 감는 소용돌이 할퀸 자국: 낙서 호 여러 개가 제각각 돌며 겹치고 먹물 방울이 튄다
+func _scratch_swirl(c: Vector2) -> void:
+	for k in 7:
+		var a0 := randf_range(0, 360)
+		var sweep := randf_range(200, 290) * (1.0 if k % 2 == 0 else -1.0)
+		_doodle_arc(c + Vector2(randf_range(-12, 12), randf_range(-12, 12)), randf_range(80, 150), a0, a0 + sweep, randf_range(10, 20), 0.6)
+	for k in 10:
+		var dot := Polygon2D.new()
+		var rr := randf_range(5, 12)
+		var pts := PackedVector2Array()
+		for i in 7:
+			pts.append(Vector2.from_angle(TAU * i / 7.0) * rr * randf_range(0.7, 1.2))
+		dot.polygon = pts
+		dot.color = Color(0.08, 0.07, 0.07) if k % 2 else Color(1, 1, 1)
+		var ang := randf() * TAU
+		var st := c + Vector2.from_angle(ang) * randf_range(90, 150)
+		dot.position = st
+		dot.z_index = 45
+		fxl.add_child(dot)
+		var tw := dot.create_tween().set_parallel(true)
+		tw.tween_property(dot, "position", st + Vector2.from_angle(ang) * randf_range(40, 90), 0.5)
+		tw.tween_property(dot, "modulate:a", 0.0, 0.35).set_delay(0.2)
+		tw.chain().tween_callback(dot.queue_free)
 
 
 ## 낙서 호(흰 속 + 삐뚤빼뚤한 검은 테두리, 양끝이 뾰족). a0에서 a1까지 빠르게 그려지고 잠깐 뒤 사라진다
@@ -2505,32 +2531,6 @@ func _doodle_arc(c: Vector2, r: float, a0: float, a1: float, thick: float, life 
 	tw.tween_callback(root.queue_free)
 
 
-## 맞은 자리에 비스듬한 손톱 자국 세 줄(낙서)
-func _claw_marks(at: Vector2) -> void:
-	for k in 3:
-		var o := at + Vector2(-40 + k * 40, 0)
-		var a := o + Vector2(-45, -85)
-		var b := o + Vector2(45, 85)
-		var root := Node2D.new()
-		root.z_index = 46
-		fxl.add_child(root)
-		for layer in 2:
-			var l := Line2D.new()
-			l.points = PackedVector2Array([a, a.lerp(b, 0.5) + Vector2(randf_range(-5, 5), 0), b])
-			l.width = 16.0 if layer == 0 else 8.0
-			l.default_color = Color(0.08, 0.07, 0.07) if layer == 0 else Color(1, 1, 1)
-			var curve := Curve.new()
-			curve.add_point(Vector2(0, 0.2))
-			curve.add_point(Vector2(0.5, 1.0))
-			curve.add_point(Vector2(1, 0.2))
-			l.width_curve = curve
-			root.add_child(l)
-		var tw := root.create_tween()
-		tw.tween_interval(0.25)
-		tw.tween_property(root, "modulate:a", 0.0, 0.3)
-		tw.tween_callback(root.queue_free)
-
-
 ## 파고든 길에 남는 긴 낙서 줄(검은 테두리 + 흰 속, 끝으로 갈수록 가늘게)
 func _doodle_streak_line(a: Vector2, b: Vector2) -> void:
 	var root := Node2D.new()
@@ -2556,7 +2556,7 @@ func _doodle_streak_line(a: Vector2, b: Vector2) -> void:
 
 
 ## 상대 자리에 가로로 길게 번쩍이는 낙서 빛(납작한 흰 타원 + 검은 테두리 + 십자 반짝이)
-func _doodle_flash_band(c: Vector2) -> void:
+func _doodle_flash_band(c: Vector2, half := 380.0) -> void:
 	var root := Node2D.new()
 	root.position = c
 	root.z_index = 46
@@ -2564,7 +2564,7 @@ func _doodle_flash_band(c: Vector2) -> void:
 	var pts := PackedVector2Array()
 	for i in 28:
 		var ang := TAU * i / 28.0
-		pts.append(Vector2(cos(ang) * 380.0, sin(ang) * 55.0) * randf_range(0.92, 1.08))
+		pts.append(Vector2(cos(ang) * half, sin(ang) * 55.0) * randf_range(0.92, 1.08))
 	var fill := Polygon2D.new()
 	fill.polygon = pts
 	fill.color = Color(1, 1, 1, 0.95)
@@ -2575,7 +2575,7 @@ func _doodle_flash_band(c: Vector2) -> void:
 	root.add_child(fill)
 	root.add_child(edge)
 	for k in 5:
-		var pos := Vector2(randf_range(-240, 240), randf_range(-80, 80))
+		var pos := Vector2(randf_range(-half * 0.65, half * 0.65), randf_range(-80, 80))
 		var sz := randf_range(14, 26)
 		for d in [Vector2(1, 0), Vector2(0, 1)]:
 			for layer in 2:
