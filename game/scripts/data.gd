@@ -50,7 +50,7 @@ static func player_cards() -> Dictionary:
 static func sium_cards() -> Dictionary:
 	var c := {
 		"zelkova": {"name": "느티나무 공방", "cost": 0, "dice": [d("slash", 3, 6), d("blunt", 3, 7)], "desc": "도끼로 옆을 후려치고 메이스로 올려친다."},
-		"ranga": {"name": "랑아 공방", "cost": 0, "dice": [d("pierce", 2, 4), d("pierce", 2, 4), d("slash", 2, 5)], "desc": "건틀릿으로 두 번 할퀴고 단검으로 벤다."},
+		"ranga": {"name": "랑아 공방", "cost": 0, "dice": [d("pierce", 2, 4), d("pierce", 2, 4), d("slash", 2, 5)], "rapid": true, "rapid_hold": 0.2, "desc": "건틀릿으로 두 번 할퀴고 단검으로 벤다."},
 		"oldboys": {"name": "늙은소년 공방", "cost": 1, "dice": [d("block", 5, 9), d("blunt", 4, 8)], "block_energy": 1, "desc": "막아 내고 망치로 내리친다. 막으면 기력 1."},
 		"allas": {"name": "알라스 공방", "cost": 2, "dice": [d("pierce", 4, 8), d("pierce", 5, 9)], "desc": "창을 내지르며 꿰뚫는다."},
 		"mook": {"name": "묵 공방", "cost": 2, "dice": [d("slash", 6, 12)], "desc": "칼을 뽑으며 단번에 벤다."},

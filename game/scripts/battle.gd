@@ -1261,6 +1261,10 @@ func _strike(who: String, side: Dictionary, dd: Dictionary) -> void:
 			if not _side(who)["broken"]:
 				await _strike_stick_durandal(side, dd)
 			return
+		if anim == "r_ranga":
+			if not _side(who)["broken"]:
+				await _strike_stick_ranga(side, dd)
+			return
 		if anim == "r_wheels":
 			if not _side(who)["broken"]:
 				await _strike_stick_wheels(side, dd)
@@ -2419,3 +2423,172 @@ func _atk_nth(side: Dictionary) -> int:
 		if _is_atk(q[k]):
 			n += 1
 	return n
+
+
+## 랑아 공방(원작 롤랑 스샷을 왼쪽에 서는 정시우 기준으로 뒤집어서). 자세만 (탁) 바뀌고 이펙트는 낙서 느낌.
+## 1타: 건틀릿을 앞 위로 할퀴어 올리며 앞쪽에 손톱 자국 세 줄이 휜다
+## 2타: 건틀릿을 몸 뒤로 휘둘러 넘기며 손톱 자국 세 줄이 어깨를 감아 돈다
+## 3타: 상대 앞까지 파고들며 단검을 내지르고, 지나온 길에 긴 줄, 상대 자리에 가로로 번쩍
+func _strike_stick_ranga(side: Dictionary, _dd: Dictionary) -> void:
+	var p: Puppet = pup["s"]
+	var nth := _atk_nth(side)
+	var tgt := _body("t")
+	fx_hold += 1
+	get_tree().create_timer(1.0, true, false, false).timeout.connect(func(): fx_hold -= 1)
+	await wait(0.06)
+	Sfx.play("swing")
+	if nth == 0:
+		p.set_pose(Poses.get_pose("k", "ranga_1"))
+		var c := _body("s") + Vector2(40, 10)
+		for k in 3:
+			_doodle_arc(c, 190.0 + k * 50.0, 70.0, -75.0, 26.0)
+		_claw_marks(tgt)
+	elif nth == 1:
+		p.set_pose(Poses.get_pose("k", "ranga_2"))
+		var c := _body("s") + Vector2(0, -30)
+		for k in 3:
+			_doodle_arc(c, 150.0 + k * 45.0, 40.0, -170.0, 24.0)
+		_claw_marks(tgt)
+	else:
+		var x0: float = p.position.x
+		p.set_pose(Poses.get_pose("k", "ranga_3"))
+		_slide("s", tgt.x - 210.0, 0.06, Tween.TRANS_QUAD)
+		await wait(0.06)
+		var y := _body("s").y + 10
+		_doodle_streak_line(Vector2(x0 - 60, y), Vector2(tgt.x - 60, y))
+		_doodle_flash_band(tgt + Vector2(0, 10))
+	await wait(0.05)
+	Sfx.play("slash")
+	_shake(8, 0.15)
+	_hitstop(0.05)
+
+
+## 낙서 호(흰 속 + 삐뚤빼뚤한 검은 테두리, 양끝이 뾰족). a0에서 a1까지 빠르게 그려지고 잠깐 뒤 사라진다
+func _doodle_arc(c: Vector2, r: float, a0: float, a1: float, thick: float, life := 0.45) -> void:
+	var root := Node2D.new()
+	root.position = c
+	root.z_index = 44
+	fxl.add_child(root)
+	var fill := Polygon2D.new()
+	fill.color = Color(0.97, 0.96, 0.93, 0.95)
+	var edge := Line2D.new()
+	edge.width = 4.0
+	edge.default_color = Color(0.08, 0.07, 0.07)
+	edge.joint_mode = Line2D.LINE_JOINT_ROUND
+	root.add_child(fill)
+	root.add_child(edge)
+	var n := 20
+	var jo := []
+	for i in n + 1:
+		jo.append(randf_range(-3, 3))
+	var draw := func(t: float) -> void:
+		var m := maxi(2, int(n * t))
+		var outer := PackedVector2Array()
+		var inner := PackedVector2Array()
+		for i in m + 1:
+			var u := float(i) / n
+			var dir := Vector2.from_angle(deg_to_rad(lerpf(a0, a1, u)))
+			var w := sin(PI * clampf(u / maxf(t, 0.01), 0.0, 1.0))
+			outer.append(dir * (r + jo[i] * w))
+			if i > 0 and i < m:
+				inner.append(dir * (r - thick * w))
+		inner.reverse()
+		var poly := outer + inner
+		if poly.size() >= 3:
+			fill.polygon = poly
+			edge.points = poly + PackedVector2Array([poly[0]])
+	draw.call(0.1)
+	var tw := root.create_tween()
+	tw.tween_method(draw, 0.1, 1.0, 0.06)
+	tw.tween_interval(life * 0.5)
+	tw.tween_property(root, "modulate:a", 0.0, life * 0.5)
+	tw.tween_callback(root.queue_free)
+
+
+## 맞은 자리에 비스듬한 손톱 자국 세 줄(낙서)
+func _claw_marks(at: Vector2) -> void:
+	for k in 3:
+		var o := at + Vector2(-40 + k * 40, 0)
+		var a := o + Vector2(-45, -85)
+		var b := o + Vector2(45, 85)
+		var root := Node2D.new()
+		root.z_index = 46
+		fxl.add_child(root)
+		for layer in 2:
+			var l := Line2D.new()
+			l.points = PackedVector2Array([a, a.lerp(b, 0.5) + Vector2(randf_range(-5, 5), 0), b])
+			l.width = 16.0 if layer == 0 else 8.0
+			l.default_color = Color(0.08, 0.07, 0.07) if layer == 0 else Color(1, 1, 1)
+			var curve := Curve.new()
+			curve.add_point(Vector2(0, 0.2))
+			curve.add_point(Vector2(0.5, 1.0))
+			curve.add_point(Vector2(1, 0.2))
+			l.width_curve = curve
+			root.add_child(l)
+		var tw := root.create_tween()
+		tw.tween_interval(0.25)
+		tw.tween_property(root, "modulate:a", 0.0, 0.3)
+		tw.tween_callback(root.queue_free)
+
+
+## 파고든 길에 남는 긴 낙서 줄(검은 테두리 + 흰 속, 끝으로 갈수록 가늘게)
+func _doodle_streak_line(a: Vector2, b: Vector2) -> void:
+	var root := Node2D.new()
+	root.z_index = 43
+	fxl.add_child(root)
+	var pts := PackedVector2Array()
+	for i in 11:
+		pts.append(a.lerp(b, i / 10.0) + Vector2(0, randf_range(-3, 3)))
+	for layer in 2:
+		var l := Line2D.new()
+		l.points = pts
+		l.width = 24.0 if layer == 0 else 12.0
+		l.default_color = Color(0.08, 0.07, 0.07) if layer == 0 else Color(1, 1, 1)
+		var curve := Curve.new()
+		curve.add_point(Vector2(0, 0.05))
+		curve.add_point(Vector2(1, 1.0))
+		l.width_curve = curve
+		root.add_child(l)
+	var tw := root.create_tween()
+	tw.tween_interval(0.3)
+	tw.tween_property(root, "modulate:a", 0.0, 0.4)
+	tw.tween_callback(root.queue_free)
+
+
+## 상대 자리에 가로로 길게 번쩍이는 낙서 빛(납작한 흰 타원 + 검은 테두리 + 십자 반짝이)
+func _doodle_flash_band(c: Vector2) -> void:
+	var root := Node2D.new()
+	root.position = c
+	root.z_index = 46
+	fxl.add_child(root)
+	var pts := PackedVector2Array()
+	for i in 28:
+		var ang := TAU * i / 28.0
+		pts.append(Vector2(cos(ang) * 380.0, sin(ang) * 55.0) * randf_range(0.92, 1.08))
+	var fill := Polygon2D.new()
+	fill.polygon = pts
+	fill.color = Color(1, 1, 1, 0.95)
+	var edge := Line2D.new()
+	edge.points = pts + PackedVector2Array([pts[0]])
+	edge.width = 5.0
+	edge.default_color = Color(0.08, 0.07, 0.07)
+	root.add_child(fill)
+	root.add_child(edge)
+	for k in 5:
+		var pos := Vector2(randf_range(-240, 240), randf_range(-80, 80))
+		var sz := randf_range(14, 26)
+		for d in [Vector2(1, 0), Vector2(0, 1)]:
+			for layer in 2:
+				var l := Line2D.new()
+				l.points = PackedVector2Array([pos - d * sz, pos + d * sz])
+				l.width = 9.0 if layer == 0 else 4.0
+				l.default_color = Color(0.08, 0.07, 0.07) if layer == 0 else Color(1, 1, 1)
+				root.add_child(l)
+	root.scale = Vector2(0.3, 1.0)
+	var tw := root.create_tween()
+	tw.tween_property(root, "scale", Vector2(1.0, 1.0), 0.06).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(0.25)
+	tw.set_parallel(true)
+	tw.tween_property(root, "scale", Vector2(1.1, 0.2), 0.3)
+	tw.tween_property(root, "modulate:a", 0.0, 0.3)
+	tw.chain().tween_callback(root.queue_free)

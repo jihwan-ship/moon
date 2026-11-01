@@ -119,6 +119,19 @@ const K := {
 	"durandal_2": {"lean": -4, "head": 2, "thighF": -30, "shinF": 10, "thighB": 30, "shinB": 6, "hip_dy": 6,
 		"upperF": 90, "foreF": 0, "upperB": 50, "foreB": -10, "prop": "k_durandal", "prop_rot": 90,
 		"prop2": "k_sheath", "prop2_rot": -10, "zB": -6},
+	# 랑아 공방(원작 롤랑 스샷을 왼쪽에 서는 정시우 기준으로 뒤집어서). 앞손에 손톱 건틀릿, 뒷손에 단검
+	# 1타: 달려들며 건틀릿을 앞 위로 할퀴어 올린다
+	"ranga_1": {"lean": 15, "head": -6, "thighF": -60, "shinF": 40, "thighB": 50, "shinB": 30, "hip_dy": 10,
+		"upperF": -110, "foreF": -10, "upperB": 30, "foreB": -30, "prop": "k_ranga_claw", "prop_rot": 90,
+		"prop2": "k_ranga_dagger", "prop2_rot": 100, "zB": -6},
+	# 2타: 건틀릿을 몸 뒤로 휘둘러 넘긴다(어깨를 감아 돌리는 할퀴기)
+	"ranga_2": {"lean": 10, "head": -4, "thighF": -55, "shinF": 45, "thighB": 45, "shinB": 30, "hip_dy": 10,
+		"upperF": 75, "foreF": 10, "upperB": 20, "foreB": -20, "prop": "k_ranga_claw", "prop_rot": 95,
+		"prop2": "k_ranga_dagger", "prop2_rot": 100, "zB": -6},
+	# 3타: 낮게 파고들며 단검을 쭉 내지른다
+	"ranga_3": {"lean": 20, "head": -8, "thighF": -70, "shinF": 60, "thighB": 60, "shinB": 10, "hip_dy": 18, "hip_dx": 10,
+		"upperF": -60, "foreF": -40, "upperB": -85, "foreB": -5, "prop": "k_ranga_claw", "prop_rot": 80,
+		"prop2": "k_ranga_dagger", "prop2_rot": 95, "zB": 6},
 	# 합에서 지고 맞을 때: 웅크리고 두 팔을 얼굴 앞에 엇갈려 막는다
 	"hurt": {"lean": 6, "head": 6, "thighF": -30, "shinF": 30, "thighB": 26, "shinB": 14, "hip_dy": 10, "hip_dx": -10,
 		"upperF": -100, "foreF": -84, "upperB": -165, "foreB": 70, "prop": "", "prop2": "", "zB": 6},
