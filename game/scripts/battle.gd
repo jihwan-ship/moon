@@ -1019,6 +1019,22 @@ func _exchange(sid: String, it) -> void:
 		else:
 			break
 		_refresh_hud()
+	await _return_from_pass()
+	await wait(0.2)
+
+
+## 크리스탈, 랑아처럼 상대 반대편으로 지나간 책장이 끝나면, 다음 책장 전에 오른쪽을 보고 제자리로 돌아온다
+func _return_from_pass() -> void:
+	var c := (HOME["s"] + HOME["t"]) / 2.0
+	var back := c - _dir("s") * CONTACT
+	if not crystal_hold and absf(pup["s"].position.x - back) < 5.0:
+		_face_right()
+		return
+	crystal_hold = false
+	_face_right()
+	if not P["broken"]:
+		pup["s"].pose("idle", 0.15)
+	_slide("s", back, 0.18, Tween.TRANS_SINE)
 	await wait(0.2)
 
 
@@ -2487,12 +2503,13 @@ func _strike_stick_ranga(side: Dictionary, _dd: Dictionary) -> void:
 		_doodle_flash_band(Vector2((a + b) * 0.5, y - 10), (b - a) * 0.5)
 		_light_orbs(Vector2(a, y - 10), Vector2(b, y - 10))
 	# 오른쪽 끝에 도착하면 잠깐 뒤 돌아서서 상대를 본다(합이 이어지는 동안 그 자리에 머문다)
+	# 마지막 3타 뒤에는 돌아서지 않고 그대로 멈췄다가 책장이 끝나면 제자리로 돌아온다(두리번거리지 않게)
 	crystal_hold = nth != 1
-	if nth != 1:
+	if nth == 0:
 		get_tree().create_timer(0.35).timeout.connect(func():
 			if crystal_hold:
 				p.scale.x = -absf(p.scale.x))
-	else:
+	elif nth == 1:
 		p.scale.x = absf(p.scale.x)
 	Sfx.play("slash")
 	_shake(8, 0.15)
