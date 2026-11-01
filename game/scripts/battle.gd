@@ -1130,6 +1130,7 @@ func _rapid(side: Dictionary) -> bool:
 
 ## 합 하나가 끝나면 둘 다 맞닿는 자리로 돌아온다. fast면 쏘던 자세 그대로 상대만 금방 돌아온다
 func _reset_pair(fast := false) -> void:
+	_face_right()
 	if fast:
 		# 원작처럼 쏜 자세 그대로 1초쯤 멈췄다가 다음 발. 상대만 제자리로 돌아온다
 		await wait(0.55)
@@ -1233,6 +1234,10 @@ func _strike(who: String, side: Dictionary, dd: Dictionary) -> void:
 		if anim == "r_mook":
 			if not _side(who)["broken"]:
 				await _strike_stick_mook(side, dd)
+			return
+		if anim == "r_crystal":
+			if not _side(who)["broken"]:
+				await _strike_stick_crystal(side, dd)
 			return
 		if anim == "r_wheels":
 			if not _side(who)["broken"]:
@@ -2055,3 +2060,184 @@ func _card_power(id_: String) -> int:
 	for dd in cards[id_]["dice"]:
 		t += int(dd["max"])
 	return t
+
+
+## 크리스탈 아틀리에가 반대편으로 지나가며 돌아섰던 방향을 되돌린다
+func _face_right() -> void:
+	var p: Node2D = pup.get("s")
+	if p and p.scale.x < 0:
+		p.scale.x = -p.scale.x
+
+
+## 크리스탈 아틀리에: 베기마다 하얀 섬광과 함께 상대를 관통해 반대편으로 지나가고(자세는 한 번에 바뀐다),
+## 지나간 자리에 먹물 호 두 개가 X자로 엇갈린다. 두 번째 베기는 반대편에서 돌아오며 X자 섬광이 터진다
+func _strike_stick_crystal(side: Dictionary, dd: Dictionary) -> void:
+	var p: Puppet = pup["s"]
+	var q: Array = side["q"]
+	var nth := 0
+	for k in q.find(dd):
+		if _is_atk(q[k]):
+			nth += 1
+	var tgt := _body("t")
+	var tx: float = pup["t"].position.x
+	var back := nth % 2 == 1          # 두 번째 베기: 반대편에서 돌아온다
+	var from := p.position.x
+	var to := tx - 170.0 if back else tx + 170.0
+	if back:
+		p.scale.x = -absf(p.scale.x)   # 왼쪽을 보고
+	await wait(0.12)
+	Sfx.play("swing")
+	_burst_flash(_body("s"), 0.6)
+	p.set_pose(Poses.get_pose("k", "crystal_dash"))
+	_slide("s", to, 0.07, Tween.TRANS_QUAD)
+	_streak(Vector2(from, tgt.y + 30), Vector2(to, tgt.y + 30))
+	await wait(0.07)
+	Sfx.play("slash")
+	_ink_cross(tgt + Vector2(0, 10))
+	if back:
+		_x_flash(tgt)
+		p.scale.x = absf(p.scale.x)
+	_shake(12, 0.25)
+	_hitstop(0.08)
+
+
+## 하얀 섬광 한 번(원형으로 번진다)
+func _burst_flash(at: Vector2, a := 1.0) -> void:
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, 0.4, 1.0])
+	g.colors = PackedColorArray([Color(1, 1, 1, a), Color(1, 1, 1, a * 0.7), Color(1, 1, 1, 0)])
+	var gt := GradientTexture2D.new()
+	gt.gradient = g
+	gt.fill = GradientTexture2D.FILL_RADIAL
+	gt.fill_from = Vector2(0.5, 0.5)
+	gt.fill_to = Vector2(1.0, 0.5)
+	gt.width = 128
+	gt.height = 128
+	var b := Sprite2D.new()
+	b.texture = gt
+	b.position = at
+	b.scale = Vector2(5, 4)
+	b.z_index = 46
+	fxl.add_child(b)
+	var tw := b.create_tween()
+	tw.tween_property(b, "scale", Vector2(7, 5), 0.25)
+	tw.parallel().tween_property(b, "modulate:a", 0.0, 0.35)
+	tw.tween_callback(b.queue_free)
+
+
+## 지나간 길에 남는 하얀 빛줄기
+func _streak(a: Vector2, b: Vector2) -> void:
+	for layer in 2:
+		var l := Line2D.new()
+		l.width = 40.0 if layer == 0 else 10.0
+		l.default_color = Color(1, 1, 1, 0.3 if layer == 0 else 1.0)
+		var curve := Curve.new()
+		curve.add_point(Vector2(0, 0.0))
+		curve.add_point(Vector2(0.6, 1.0))
+		curve.add_point(Vector2(1, 0.2))
+		l.width_curve = curve
+		l.points = PackedVector2Array([a, b])
+		l.z_index = 45
+		fxl.add_child(l)
+		var tw := l.create_tween()
+		tw.tween_interval(0.1)
+		tw.tween_property(l, "modulate:a", 0.0, 0.6)
+		tw.tween_callback(l.queue_free)
+
+
+## 먹물 호 두 개가 X자로 엇갈린다(굵은 먹 선 + 흰 하이라이트 + 먹물 방울). 천천히 사라진다
+func _ink_cross(c: Vector2) -> void:
+	fx_hold += 1
+	get_tree().create_timer(1.8, true, false, false).timeout.connect(func(): fx_hold -= 1)
+	for k in 2:
+		var root := Node2D.new()
+		root.position = c
+		root.rotation_degrees = -35.0 if k == 0 else 35.0
+		root.z_index = 44
+		fxl.add_child(root)
+		var rx := 340.0
+		var ry := 180.0
+		var layers: Array[Line2D] = []
+		for layer in 3:
+			var l := Line2D.new()
+			l.width = [60.0, 36.0, 7.0][layer]
+			l.default_color = [Color(0.12, 0.11, 0.11, 0.55), Color(0.08, 0.07, 0.07, 0.95), Color(1, 1, 1, 0.9)][layer]
+			var curve := Curve.new()
+			curve.add_point(Vector2(0, 0.05))
+			curve.add_point(Vector2(0.45, 1.0))
+			curve.add_point(Vector2(1, 0.05))
+			l.width_curve = curve
+			root.add_child(l)
+			layers.append(l)
+		var a0 := 200.0 if k == 0 else 160.0
+		var sweep := 230.0 if k == 0 else -230.0
+		var draw := func(t: float) -> void:
+			var pts := PackedVector2Array()
+			var n := maxi(2, int(40 * t))
+			for i in n + 1:
+				var ang := deg_to_rad(a0 + sweep * t * i / n)
+				pts.append(Vector2(cos(ang) * rx, sin(ang) * ry))
+			for l in layers:
+				l.points = pts
+		draw.call(0.02)
+		var tw := root.create_tween()
+		tw.tween_interval(k * 0.06)
+		tw.tween_method(draw, 0.02, 1.0, 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_interval(0.5)
+		tw.tween_property(root, "modulate:a", 0.0, 0.9)
+		tw.tween_callback(root.queue_free)
+	# 먹물 방울
+	for k in 22:
+		var dot := Polygon2D.new()
+		var rr := randf_range(5, 14)
+		var pts := PackedVector2Array()
+		for i in 8:
+			pts.append(Vector2.from_angle(TAU * i / 8.0) * rr * randf_range(0.7, 1.2))
+		dot.polygon = pts
+		dot.color = Color(0.08, 0.07, 0.07, 0.9) if k % 3 else Color(1, 1, 1, 0.9)
+		dot.position = c + Vector2(randf_range(-360, 360), randf_range(-220, 200))
+		dot.z_index = 44
+		fxl.add_child(dot)
+		var tw := dot.create_tween().set_parallel(true)
+		tw.tween_property(dot, "position", dot.position + Vector2(randf_range(-40, 40), randf_range(-30, 30)), 1.2)
+		tw.tween_property(dot, "modulate:a", 0.0, 0.8).set_delay(0.5)
+		tw.chain().tween_callback(dot.queue_free)
+
+
+## 두 번째 베기: 화면 가득 X자로 교차하는 하얀 섬광과 빛 방울
+func _x_flash(c: Vector2) -> void:
+	_burst_flash(c, 1.0)
+	get_tree().create_timer(0.05).timeout.connect(func(): _screen_flash(0.4))
+	for deg in [-28.0, 28.0]:
+		var d := Vector2.from_angle(deg_to_rad(deg)) * 900.0
+		for layer in 2:
+			var l := Line2D.new()
+			l.width = 70.0 if layer == 0 else 16.0
+			l.default_color = Color(1, 1, 1, 0.35 if layer == 0 else 1.0)
+			var curve := Curve.new()
+			curve.add_point(Vector2(0, 0.0))
+			curve.add_point(Vector2(0.5, 1.0))
+			curve.add_point(Vector2(1, 0.0))
+			l.width_curve = curve
+			l.points = PackedVector2Array([c - d, c + d])
+			l.z_index = 46
+			fxl.add_child(l)
+			var tw := l.create_tween()
+			tw.tween_interval(0.15)
+			tw.tween_property(l, "modulate:a", 0.0, 0.7)
+			tw.tween_callback(l.queue_free)
+	for k in 14:
+		var o := Polygon2D.new()
+		var rr := randf_range(8, 18)
+		var pts := PackedVector2Array()
+		for i in 12:
+			pts.append(Vector2.from_angle(TAU * i / 12.0) * rr)
+		o.polygon = pts
+		o.color = Color(1, 1, 1, 0.95)
+		o.position = c + Vector2(randf_range(-480, 480), randf_range(-260, 200))
+		o.z_index = 47
+		fxl.add_child(o)
+		var tw := o.create_tween().set_parallel(true)
+		tw.tween_property(o, "position", o.position + Vector2(randf_range(-30, 30), randf_range(-50, -10)), 1.2)
+		tw.tween_property(o, "modulate:a", 0.0, 0.9).set_delay(0.3)
+		tw.chain().tween_callback(o.queue_free)

@@ -148,14 +148,28 @@ p.poly((92, 148), (240, 30), (252, 40), (108, 162), fill=(220, 220, 230))
 p.d.arc((40, 10, 290, 230), 200, 320, fill=INK, width=3)
 p.save('durandal')
 
-# 크리스탈: 반짝이는 두 칼
-p = Pen()
-p.poly((70, 190), (130, 30), (150, 40), (90, 195), fill=(170, 220, 240))
-p.poly((230, 190), (170, 30), (150, 40), (210, 195), fill=(170, 220, 240))
-for x, y in ((60, 50), (240, 60), (150, 120)):
-    p.line((x - 12, y), (x + 12, y), w=3)
-    p.line((x, y - 12), (x, y + 12), w=3)
-p.save('crystal')
+# 크리스탈: 직접 그린 칼 두 자루를 X자로 엇갈려 놓는다
+def crossed_card(src, name):
+    from scipy import ndimage
+    im = Image.open(src).convert('RGBA')
+    bg = Image.new('RGBA', im.size, (255, 255, 255, 255))
+    bg.alpha_composite(im)
+    dark = np.array(bg.convert('L')) < 128
+    ys, xs = np.where(dark)
+    line = ndimage.binary_dilation(dark, iterations=2)[ys.min() - 4:ys.max() + 5, xs.min() - 4:xs.max() + 5]
+    one = np.zeros(line.shape + (4,), np.uint8)
+    one[line] = INK + (255,)
+    sword = Image.fromarray(one, 'RGBA')
+    p = Pen()
+    for ang in (35, 145):
+        r = sword.rotate(ang, expand=True, resample=Image.BICUBIC)
+        r = r.resize((int(r.width * 0.8), int(r.height * 0.8)))
+        p.im.alpha_composite(r, ((W - r.width) // 2, (H - r.height) // 2))
+    p.save(name)
+
+
+# 책장 그림은 직접 그린 그림(아치 아래 정시우)으로
+user_card('art_src/sium/card_crystal.png', 'crystal')
 
 # 휠즈: 직접 그린 대검 그림
 user_card('art_src/sium/greatsword.png', 'wheels', rot=-28)

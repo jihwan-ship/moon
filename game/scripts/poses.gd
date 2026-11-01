@@ -107,6 +107,10 @@ const K := {
 		"upperF": -20, "foreF": -60, "upperB": -10, "foreB": -70, "prop": "k_katana", "prop_rot": 233, "prop2": ""},
 	"mook_draw": {"lean": 18, "head": -8, "thighF": -60, "shinF": 50, "thighB": 50, "shinB": 0, "hip_dy": 18, "hip_dx": 16,
 		"upperF": -100, "foreF": -10, "upperB": 40, "foreB": -20, "prop": "k_katana", "prop_rot": 72, "prop2": ""},
+	# 크리스탈 아틀리에: 상대를 관통해 지나간 뒤 낮게 파고든 채 두 칼을 뒤로 늘어뜨린 자세
+	"crystal_dash": {"lean": 25, "head": -10, "thighF": -60, "shinF": 40, "thighB": 55, "shinB": 5, "hip_dy": 20,
+		"upperF": 40, "foreF": -10, "upperB": 30, "foreB": -5, "prop": "k_crystal_sword", "prop_rot": 100,
+		"prop2": "k_crystal_sword", "prop2_rot": 105, "zB": -6},
 	# 합에서 지고 맞을 때: 웅크리고 두 팔을 얼굴 앞에 엇갈려 막는다
 	"hurt": {"lean": 6, "head": 6, "thighF": -30, "shinF": 30, "thighB": 26, "shinB": 14, "hip_dy": 10, "hip_dx": -10,
 		"upperF": -100, "foreF": -84, "upperB": -165, "foreB": 70, "prop": "", "prop2": "", "zB": 6},
