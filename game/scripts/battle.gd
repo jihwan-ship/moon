@@ -479,7 +479,7 @@ func _title() -> void:
 	sub.size = Vector2(1280, 40)
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	overlay.add_child(sub)
-	var modes := [["작전 개시", "soldier"], ["정시우 모드", "sium"], ["테스트 모드", "practice"]]
+	var modes := [["작전 개시", "soldier"], ["정시우 모드", "sium"], ["테스트 모드", "practice"], ["뱀서 (테스트)", "survivor"]]
 	for i in modes.size():
 		var mb := _button(modes[i][0], Vector2(640 - modes.size() * 110 + i * 220 + 10, 420))
 		overlay.add_child(mb)
@@ -491,6 +491,9 @@ func _title() -> void:
 	var mode: String = await mode_chosen
 	tw.kill()
 	Sfx.play("click")
+	if mode == "survivor":
+		get_tree().change_scene_to_file("res://scenes/survivor.tscn")
+		return
 	Cfg.practice = mode == "practice"
 	if Cfg.practice:
 		mode = "sium"
